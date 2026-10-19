@@ -91,6 +91,7 @@ const DONE_UNITS = [
   'Top N 쿼리',
   '계층형 질의와 셀프 조인',
   'PIVOT 절과 UNPIVOT 절',
+  '정규 표현식',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -620,6 +621,31 @@ test('PIVOT 절과 UNPIVOT 절 단원: 카드·문제에 적은 값과 SQLite �
   assert(fails("SELECT * FROM (SELECT 부서번호, 직급 FROM 사원) PIVOT (COUNT(*) FOR 직급 IN ('부장' AS 부장))"), 'PIVOT 없음');
   assert(fails('SELECT * FROM (SELECT 이름, 급여, 커미션 FROM 사원) UNPIVOT (금액 FOR 항목 IN (급여, 커미션))'), 'UNPIVOT 없음');
   assert(fails("SELECT SUM(DECODE(직급, '부장', 급여)) FROM 사원"), 'DECODE 없음');
+  db.close();
+});
+
+test('정규 표현식 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(rows("SELECT 이름 FROM 사원 WHERE 이름 REGEXP '^(김|이|박)'").flat(), ['김대표', '이부장', '박부장']);
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 이름 LIKE '김%' OR 이름 LIKE '이%' OR 이름 LIKE '박%'"), [3]);
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 이름 REGEXP '장'"), [5], '일부만 맞아도 참');
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 이름 LIKE '장'"), [0]);
+  eq(one("SELECT SUM(이름 REGEXP '장$'), SUM(이름 REGEXP '^.대'), SUM(이름 REGEXP '[강조]'), SUM(이름 REGEXP '^[^김이박]') FROM 사원"), [4, 3, 2, 8]);
+  eq(one("SELECT SUM(입사일 REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'), SUM(입사일 REGEXP '^202[2-5]'), SUM(입사일 REGEXP '-0[1-3]-') FROM 사원"), [11, 4, 5]);
+  eq(one("SELECT 'ac' REGEXP 'ab*c', 'ac' REGEXP 'ab+c', 'abbc' REGEXP 'ab?c', 'abbbc' REGEXP 'ab{2,3}c', 'abbbbc' REGEXP 'ab{2,3}c'"), [1, 0, 0, 1, 0]);
+  eq(one("SELECT 'abcc' REGEXP '^ab*c$', 'ac' REGEXP '^ab*c$', '123-4567' REGEXP '^[0-9]{3}-[0-9]{4}$', '123-456' REGEXP '^[0-9]{3}-[0-9]{4}$'"), [0, 1, 1, 0]);
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 이름 REGEXP '(대리|사원)$'"), [5]);
+  eq(one("SELECT '사원대리' REGEXP '(대리|사원)$', '사원대리' REGEXP '^(대리|사원)$', '사원대리' REGEXP '대리|사원$'"), [1, 0, 1]);
+  eq(one("SELECT '3.14' REGEXP '^3\\.14$', '3914' REGEXP '^3.14$', '3914' REGEXP '^3\\.14$', 'v152' REGEXP '^v1\\.2$', 'v1.2' REGEXP '^v1\\.2$'"), [1, 1, 0, 0, 1]);
+  eq(one("SELECT 'B7' REGEXP '^[A-C][0-9]$', 'A12' REGEXP '^[A-C][0-9]$', 'D5' REGEXP '^[A-C][0-9]$'"), [1, 0, 0]);
+  eq(one("SELECT 'SQLD' REGEXP '^sql', 'SQLD' REGEXP '^[Ss][Qq][Ll]', REPLACE('010-1234-5678', '-', '')"), [0, 1, '01012345678']);
+  eq(one('SELECT NULL REGEXP \'a\''), [null], 'NULL은 참이 아님');
+  // 오라클과 다르다고 적은 SQLite 동작
+  eq(one("SELECT '2024' REGEXP '^[[:digit:]]+$', '2024' REGEXP '^\\d+$'"), [0, 1], 'POSIX 클래스는 모름, \\d는 됨');
+  for (const f of ["REGEXP_LIKE('a', 'a')", "REGEXP_SUBSTR('a1', '[0-9]')", "REGEXP_INSTR('a1', '[0-9]')", "REGEXP_COUNT('a1', '[0-9]')", "REGEXP_REPLACE('a1', '[0-9]', '')"]) {
+    assert(fails(`SELECT ${f}`), `SQLite에서 안 돼야 함: ${f}`);
+  }
+  assert(fails("SELECT '김대표' REGEXP '('"), '틀린 패턴은 오류');
   db.close();
 });
 
