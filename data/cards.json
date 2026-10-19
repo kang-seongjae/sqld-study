@@ -1,0 +1,66 @@
+{
+  "subjects": [
+    {
+      "name": "2과목 SQL 기본과 활용",
+      "units": [
+        {
+          "name": "SQL 기본",
+          "cards": [
+            {
+              "id": "select-where",
+              "title": "SELECT와 WHERE",
+              "desc": "SELECT는 가져올 컬럼을, WHERE는 가져올 행의 조건을 정한다.\nNULL은 = 로 비교할 수 없고 IS NULL / IS NOT NULL을 쓴다.",
+              "sql": "SELECT 이름, 직급, 급여\nFROM 사원\nWHERE 급여 >= 4000\n  AND 커미션 IS NULL;",
+              "quiz": [
+                {
+                  "q": "커미션이 NULL인 사원을 찾는 조건으로 올바른 것은?",
+                  "choices": ["커미션 = NULL", "커미션 IS NULL", "커미션 == NULL", "커미션 IN (NULL)"],
+                  "answer": 2,
+                  "explain": "NULL과의 비교(=, IN)는 결과가 UNKNOWN이라 행이 나오지 않는다. IS NULL을 써야 한다."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "그룹 함수",
+          "cards": [
+            {
+              "id": "group-by-having",
+              "title": "GROUP BY와 HAVING",
+              "desc": "GROUP BY로 묶은 뒤 집계 함수로 계산한다.\n그룹에 대한 조건은 WHERE가 아니라 HAVING에 쓴다.",
+              "sql": "SELECT 부서번호, COUNT(*) AS 인원, AVG(급여) AS 평균급여\nFROM 사원\nGROUP BY 부서번호\nHAVING COUNT(*) >= 3;",
+              "quiz": [
+                {
+                  "q": "집계 결과(예: COUNT(*) >= 3)로 그룹을 걸러낼 때 쓰는 절은?",
+                  "choices": ["WHERE", "ORDER BY", "HAVING", "GROUP BY"],
+                  "answer": 3,
+                  "explain": "WHERE는 그룹을 만들기 전 행을 거르고, HAVING은 그룹을 만든 뒤 집계 결과로 거른다."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "조인",
+          "cards": [
+            {
+              "id": "outer-join",
+              "title": "LEFT OUTER JOIN",
+              "desc": "왼쪽 테이블의 행은 짝이 없어도 모두 남기고, 오른쪽 값은 NULL로 채운다.\n오라클의 (+) 표기는 SQLite에서 쓸 수 없으니 표준 JOIN 문법으로 연습한다.",
+              "sql": "SELECT d.부서명, e.이름\nFROM 부서 d\nLEFT OUTER JOIN 사원 e\n  ON d.부서번호 = e.부서번호\nORDER BY d.부서번호;",
+              "quiz": [
+                {
+                  "q": "부서 d LEFT OUTER JOIN 사원 e 에서 사원이 한 명도 없는 부서는 어떻게 나오는가?",
+                  "choices": ["결과에서 빠진다", "부서 정보와 함께 사원 컬럼이 NULL로 나온다", "오류가 난다", "사원 컬럼이 0으로 나온다"],
+                  "answer": 2,
+                  "explain": "LEFT OUTER JOIN은 왼쪽(부서) 행을 모두 남기고, 짝이 없는 오른쪽 컬럼을 NULL로 채운다."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

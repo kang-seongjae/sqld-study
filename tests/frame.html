@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>폭 고정 보기</title>
+  <!-- 헤드리스 Chrome은 창을 500px보다 좁게 못 만들어서, 폰 너비 스크린샷은 이 iframe으로 찍는다.
+       예: frame.html?w=390&h=844&hash=cards -->
+  <style>html, body { margin: 0; } iframe { border: 0; display: block; }</style>
+</head>
+<body>
+  <script>
+    const p = new URLSearchParams(location.search);
+    const f = document.createElement('iframe');
+    f.width = p.get('w') || 390;
+    f.height = p.get('h') || 844;
+    f.src = `../index.html?ns=shot#${p.get('hash') || 'cards'}`;
+    document.body.append(f);
+  </script>
+</body>
+</html>

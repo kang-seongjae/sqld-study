@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQLD 공부</title>
+  <meta name="theme-color" content="#1f5fbf">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>SQLD 공부</h1>
+    <div class="topbar-actions">
+      <button type="button" id="btn-export">백업 내보내기</button>
+      <button type="button" id="btn-import">백업 불러오기</button>
+      <input type="file" id="file-import" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel panel-left" aria-label="공부">
+      <nav class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="cards">개념 카드</button>
+        <button type="button" role="tab" data-tab="quiz">오늘의 퀴즈</button>
+        <button type="button" role="tab" data-tab="wrong">오답노트 <span class="badge" id="wrong-count">0</span></button>
+      </nav>
+      <div class="view" id="view-cards" role="tabpanel"></div>
+      <div class="view" id="view-quiz" role="tabpanel" hidden></div>
+      <div class="view" id="view-wrong" role="tabpanel" hidden></div>
+    </section>
+
+    <section class="panel panel-right" id="practice" aria-label="SQL 연습">
+      <h2>SQL 연습</h2>
+      <p class="notice">여기서는 SQLite로 실행돼요. <strong>오라클과 문법이 다를 수 있어요.</strong></p>
+      <details class="schema">
+        <summary>예제 테이블 구조</summary>
+        <div id="schema-list"></div>
+      </details>
+      <textarea id="sql-editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="SQL 입력"></textarea>
+      <div class="editor-actions">
+        <button type="button" class="primary" id="btn-run">실행 <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span></button>
+        <button type="button" id="btn-reset-db" title="예제 테이블을 처음 상태로 되돌려요">테이블 초기화</button>
+      </div>
+      <div id="sql-result" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" hidden></div>
+
+  <script src="vendor/sql-wasm.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
