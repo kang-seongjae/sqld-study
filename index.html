@@ -4,48 +4,79 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SQLD 공부</title>
-  <meta name="theme-color" content="#1f5fbf">
+  <meta name="theme-color" content="#16191d">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>SQLD 공부</h1>
-    <div class="topbar-actions">
-      <button type="button" id="btn-export">백업 내보내기</button>
-      <button type="button" id="btn-import">백업 불러오기</button>
-      <input type="file" id="file-import" accept="application/json,.json" hidden>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="panel panel-left" aria-label="공부">
-      <nav class="tabs" role="tablist">
-        <button type="button" role="tab" data-tab="cards">개념 카드</button>
-        <button type="button" role="tab" data-tab="quiz">오늘의 퀴즈</button>
-        <button type="button" role="tab" data-tab="wrong">오답노트 <span class="badge" id="wrong-count">0</span></button>
-      </nav>
-      <div class="view" id="view-cards" role="tabpanel"></div>
-      <div class="view" id="view-quiz" role="tabpanel" hidden></div>
-      <div class="view" id="view-wrong" role="tabpanel" hidden></div>
-    </section>
-
-    <section class="panel panel-right" id="practice" aria-label="SQL 연습">
-      <h2>SQL 연습</h2>
-      <p class="notice">여기서는 SQLite로 실행돼요. <strong>오라클과 문법이 다를 수 있어요.</strong></p>
-      <details class="schema">
-        <summary>예제 테이블 구조</summary>
-        <div id="schema-list"></div>
-      </details>
-      <textarea id="sql-editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="SQL 입력"></textarea>
-      <div class="editor-actions">
-        <button type="button" class="primary" id="btn-run">실행 <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span></button>
-        <button type="button" id="btn-reset-db" title="예제 테이블을 처음 상태로 되돌려요">테이블 초기화</button>
+  <div class="app" id="app">
+    <header class="titlebar">
+      <button type="button" class="icon-btn" id="btn-tree" aria-controls="explorer" aria-expanded="true" title="탐색기 열고 닫기">
+        <span aria-hidden="true">☰</span><span class="sr-only">탐색기</span>
+      </button>
+      <h1 class="app-title">SQLD 공부</h1>
+      <span class="title-path" id="title-path"></span>
+      <div class="titlebar-actions">
+        <button type="button" class="ghost" id="btn-export">백업 내보내기</button>
+        <button type="button" class="ghost" id="btn-import">백업 불러오기</button>
+        <input type="file" id="file-import" accept="application/json,.json" hidden>
       </div>
-      <div id="sql-result" aria-live="polite"></div>
-    </section>
-  </main>
+    </header>
+
+    <main class="layout">
+      <nav class="explorer" id="explorer" aria-label="과목과 단원">
+        <div class="pane-head">탐색기</div>
+        <div class="tree" id="tree"></div>
+      </nav>
+
+      <section class="panel panel-left" aria-label="공부">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="cards"><span class="tab-icon icon-md" aria-hidden="true"></span>개념 카드</button>
+          <button type="button" role="tab" data-tab="quiz"><span class="tab-icon icon-quiz" aria-hidden="true"></span>오늘의 퀴즈</button>
+          <button type="button" role="tab" data-tab="wrong"><span class="tab-icon icon-wrong" aria-hidden="true"></span>오답노트 <span class="badge" id="wrong-count">0</span></button>
+        </div>
+        <div class="view" id="view-cards" role="tabpanel"></div>
+        <div class="view" id="view-quiz" role="tabpanel" hidden></div>
+        <div class="view" id="view-wrong" role="tabpanel" hidden></div>
+      </section>
+
+      <section class="panel panel-right" id="practice" aria-label="SQL 연습">
+        <div class="pane-head"><span>SQL 연습</span><span class="file-name">practice.sql</span></div>
+        <div class="practice-body">
+          <p class="notice"><span class="warn-mark" aria-hidden="true">⚠</span> 여기서는 SQLite로 실행돼요. <strong>오라클과 문법이 다를 수 있어요.</strong></p>
+          <details class="schema">
+            <summary>예제 테이블 구조</summary>
+            <div id="schema-list"></div>
+          </details>
+          <div class="code-editor">
+            <div class="gutter" id="editor-gutter" aria-hidden="true"></div>
+            <div class="code-area">
+              <pre class="code-hl" aria-hidden="true"><code id="editor-hl"></code></pre>
+              <textarea id="sql-editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" aria-label="SQL 입력"></textarea>
+            </div>
+          </div>
+          <div class="editor-actions">
+            <button type="button" class="primary" id="btn-run">▶ 실행 <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span></button>
+            <button type="button" id="btn-reset-db" title="예제 테이블을 처음 상태로 되돌려요">테이블 초기화</button>
+          </div>
+          <div class="terminal">
+            <div class="terminal-head"><span>출력</span><span class="terminal-tag">sqlite</span></div>
+            <div class="terminal-body" id="sql-result" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="statusbar" aria-label="상태">
+      <span class="st-item" id="st-progress">진도 0%</span>
+      <span class="st-item" id="st-wrong">오답 0</span>
+      <span class="st-item" id="st-today">오늘 푼 문제 0</span>
+      <span class="st-spacer"></span>
+      <span class="st-item st-dim">SQLite</span>
+      <span class="st-item st-dim">UTF-8</span>
+    </footer>
+  </div>
 
   <div id="toast" role="status" hidden></div>
 

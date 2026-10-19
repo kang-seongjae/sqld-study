@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8">
   <title>폭 고정 보기</title>
-  <!-- 헤드리스 Chrome은 창을 500px보다 좁게 못 만들어서, 폰 너비 스크린샷은 이 iframe으로 찍는다.
-       예: frame.html?w=390&h=844&hash=cards -->
+  <!-- 스크린샷용: 앱을 정해진 크기의 iframe 안에서 연다(헤드리스 Chrome은 창을 500px보다 좁게 못 만든다).
+       예: frame.html?w=390&h=844&hash=cards&ui={"subject":1,"unit":1,"card":2}
+       ui를 주면 그 카드가 열린 상태로 시작한다(?ns=shot 전용 저장소에만 쓴다). -->
   <style>html, body { margin: 0; } iframe { border: 0; display: block; }</style>
 </head>
 <body>
   <script>
     const p = new URLSearchParams(location.search);
+    for (const k of Object.keys(localStorage)) if (k.startsWith('sqld-study:shot')) localStorage.removeItem(k);
+    if (p.get('ui')) localStorage.setItem('sqld-study:shot:ui', p.get('ui'));
     const f = document.createElement('iframe');
     f.width = p.get('w') || 390;
     f.height = p.get('h') || 844;

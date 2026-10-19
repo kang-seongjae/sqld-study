@@ -19,6 +19,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ".wasm": "application/wasm",
         ".webmanifest": "application/manifest+json",
         ".svg": "image/svg+xml",
+        ".ttf": "font/ttf",
     }
 
     def log_message(self, *args):

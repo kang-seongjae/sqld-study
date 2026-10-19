@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 from serve import make_server  # noqa: E402
 
 # 앱에 속한 파일: 바뀌면 오프라인 캐시도 바뀌어야 하는 것들
-APP_GLOBS = ["*.html", "*.css", "*.js", "*.webmanifest", "*.svg", "lib/**/*", "data/**/*.json", "vendor/**/*"]
+APP_GLOBS = ["*.html", "*.css", "*.js", "*.webmanifest", "*.svg", "lib/**/*", "data/**/*.json", "vendor/**/*", "fonts/**/*.ttf"]
 NOT_APP = {"sw.js"}
 
 CHROME_CANDIDATES = [

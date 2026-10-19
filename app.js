@@ -1,5 +1,6 @@
 import * as L from './lib/logic.js';
 import { createSampleDb, TABLE_INFO } from './lib/sample-db.js';
+import { highlightSql } from './lib/highlight.js';
 
 // ?ns=이름 으로 열면 기록을 따로 저장한다(테스트가 실제 기록을 건드리지 않게).
 const NS = new URLSearchParams(location.search).get('ns');
@@ -11,6 +12,8 @@ const TABS = ['cards', 'quiz', 'wrong'];
 
 const $ = (sel) => document.querySelector(sel);
 const editor = $('#sql-editor');
+// 탐색기에서 접어 둔 과목(번호)
+const closedSubjects = new Set();
 
 let data = { subjects: [] };
 let dataErrors = [];
@@ -97,6 +100,10 @@ function setTab(next) {
 
 function render() {
   updateWrongBadge();
+  renderTree();
+  updateStatus();
+  // 제목 줄: 카드 탭은 열린 카드의 경로(renderCards에서), 다른 탭은 탭 이름
+  if (tab !== 'cards') $('#title-path').textContent = tab === 'quiz' ? `오늘의 퀴즈 / ${L.dateKey()}` : '오답노트';
   if (tab === 'cards') renderCards();
   else if (tab === 'quiz') renderQuiz();
   else renderWrong();
@@ -107,6 +114,72 @@ function updateWrongBadge() {
   const badge = $('#wrong-count');
   badge.textContent = n;
   badge.classList.toggle('zero', n === 0);
+}
+
+// ---------- 상태 표시줄 ----------
+
+function updateStatus() {
+  const p = L.overallProgress(state, questions);
+  $('#st-progress').textContent = `진도 ${p.percent}% (${p.solved}/${p.total})`;
+  $('#st-wrong').textContent = `오답 ${L.wrongQuestions(state, questions).length}`;
+  $('#st-today').textContent = `오늘 푼 문제 ${L.todayCount(state)}`;
+}
+
+// ---------- 탐색기(과목 → 단원 트리) ----------
+
+function renderTree() {
+  const tree = $('#tree');
+  if (!data.subjects.length || !ui) { tree.replaceChildren(); return; }
+  const items = [];
+  data.subjects.forEach((s, si) => {
+    const open = !closedSubjects.has(si);
+    items.push(h('button', {
+      type: 'button',
+      class: 'tree-subject',
+      'aria-expanded': String(open),
+      'data-subject': si,
+      onclick: () => { if (open) closedSubjects.add(si); else closedSubjects.delete(si); renderTree(); },
+    }, h('span', { class: 'caret', 'aria-hidden': 'true' }, open ? '▾' : '▸'), h('span', {}, s.name)));
+    if (!open) return;
+    s.units.forEach((u, i) => {
+      if (u.group && (i === 0 || s.units[i - 1].group !== u.group)) items.push(h('div', { class: 'tree-group' }, u.group));
+      const p = L.unitProgress(state, u);
+      const mark = p.done ? h('span', { class: 'tree-mark done', title: '공부 완료' }, '✓')
+        : p.solved > 0 ? h('span', { class: 'tree-mark partial', title: '공부 중' }, '◐')
+          : h('span', { class: 'tree-mark' });
+      items.push(h('button', {
+        type: 'button',
+        class: `tree-unit${u.cards.length ? '' : ' empty-unit'}`,
+        'data-subject': si,
+        'data-unit': i,
+        'data-done': p.done ? 'true' : null,
+        'aria-current': si === ui.subject && i === ui.unit ? 'true' : null,
+        title: `카드 ${u.cards.length}장 · 문제 ${p.solved}/${p.total} 맞힘${p.done ? ' · 공부 완료' : ''}`,
+        onclick: () => openUnit(si, i),
+      },
+      h('span', { class: 'file-icon', 'aria-hidden': 'true' }, '≡'),
+      h('span', { class: 'tree-name' }, u.name),
+      h('span', { class: 'tree-count' }, String(u.cards.length)),
+      mark));
+    });
+  });
+  tree.replaceChildren(...items);
+}
+
+function openUnit(si, i) {
+  ui.subject = si;
+  ui.unit = i;
+  ui.card = 0;
+  saveUi();
+  if (isNarrow()) setTreeOpen(false);
+  if (tab !== 'cards') setTab('cards');
+  else render();
+  $('.panel-left').scrollTo({ top: 0 });
+}
+
+function setTreeOpen(open) {
+  $('#app').classList.toggle('tree-hidden', !open);
+  $('#btn-tree').setAttribute('aria-expanded', String(open));
 }
 
 // ---------- 개념 카드 ----------
@@ -125,29 +198,8 @@ function renderCards() {
     view.append(h('p', { class: 'empty' }, '아직 카드가 없어요. data/cards.json에 추가해 보세요.'));
     return;
   }
-  const { subject, unit } = currentPlace();
-
-  const subjectSel = h('select', {
-    id: 'pick-subject',
-    onchange: (e) => { ui.subject = +e.target.value; ui.unit = 0; ui.card = 0; saveUi(); renderCards(); },
-  }, subjects.map((s, i) => h('option', { value: i, selected: i === ui.subject }, s.name)));
-  // 단원은 출제 기준의 주요항목(group)별로 묶어서 보여 준다.
-  const unitSel = h('select', {
-    id: 'pick-unit',
-    onchange: (e) => { ui.unit = +e.target.value; ui.card = 0; saveUi(); renderCards(); },
-  });
-  let optParent = unitSel;
-  subject.units.forEach((u, i) => {
-    if (u.group && (i === 0 || subject.units[i - 1].group !== u.group)) {
-      optParent = h('optgroup', { label: u.group });
-      unitSel.append(optParent);
-    }
-    optParent.append(h('option', { value: i, selected: i === ui.unit }, `${u.name} (${u.cards.length})`));
-  });
-
-  view.append(h('div', { class: 'pickers' },
-    h('label', {}, '과목', subjectSel),
-    h('label', {}, '단원', unitSel)));
+  const { subject, unit, card } = currentPlace();
+  $('#title-path').textContent = [subject.name, unit?.name, card?.title].filter(Boolean).join(' / ');
   if (unit) {
     view.append(h('p', { class: 'scope' }, '출제 범위: ',
       [unit.group, (unit.topics || [unit.name]).join(', ')].filter(Boolean).join(' › ')));
@@ -187,7 +239,7 @@ function goCard(i) {
   if (!unit || i < 0 || i >= unit.cards.length) return;
   ui.card = i;
   saveUi();
-  renderCards();
+  render();
   $('.panel-left').scrollTo({ top: 0 });
   if (isNarrow()) $('.card-nav').scrollIntoView({ block: 'start' });
 }
@@ -208,7 +260,7 @@ function renderCard(c, subject, unit) {
       (c.figures || []).map(figureNodes),
       c.diagram && h('pre', { class: 'diagram' }, c.diagram)),
     c.sql && section('sec-sql', '예시 SQL',
-      h('pre', { class: 'sql' }, h('code', {}, c.sql)),
+      codeBlock(c.sql),
       h('div', { class: 'card-actions' },
         h('button', { type: 'button', class: 'primary', 'data-send': '', onclick: () => sendToEditor(c.sql) }, '연습창으로 보내기 ▶')),
       h('div', { class: 'example-result' }, h('p', { class: 'sub-title' }, '예제 테이블에서 실행한 결과'), exampleResultNodes(c.sql))),
@@ -235,6 +287,13 @@ function renderCard(c, subject, unit) {
     card.append(section('sec-exam', '시험에서는 이렇게 물어요', c.exam && h('p', {}, c.exam), quizBox));
   }
   return card;
+}
+
+// 카드의 예시 SQL: 줄마다 나눠 줄 번호(CSS counter)와 문법 색을 붙인다.
+function codeBlock(sql) {
+  const code = h('code', {});
+  code.innerHTML = sql.split('\n').map((line) => `<span class="line">${highlightSql(line) || ' '}</span>`).join('');
+  return h('pre', { class: 'sql' }, code);
 }
 
 // 1과목처럼 SQL 대신 표로 설명하는 카드용. 실행 결과 표와 같은 모양으로 그린다.
@@ -269,14 +328,38 @@ function exampleResultNodes(sql) {
 }
 
 function sendToEditor(sql) {
-  editor.value = sql;
+  setEditorText(sql);
   state.sql = sql;
   save();
   if (isNarrow()) $('#practice').scrollIntoView({ behavior: 'smooth', block: 'start' });
   editor.focus({ preventScroll: true });
-  editor.classList.remove('flash');
-  void editor.offsetWidth; // 애니메이션을 다시 시작하려고 리플로우
-  editor.classList.add('flash');
+  const box = $('.code-editor');
+  box.classList.remove('flash');
+  void box.offsetWidth; // 애니메이션을 다시 시작하려고 리플로우
+  box.classList.add('flash');
+}
+
+// ---------- 연습창 에디터: 투명한 textarea 아래에 색칠한 사본과 줄 번호를 겹쳐 둔다 ----------
+
+function setEditorText(text) {
+  editor.value = text;
+  syncEditor();
+}
+
+function syncEditor() {
+  const text = editor.value;
+  // 끝에 줄바꿈이 있으면 마지막 빈 줄도 높이를 갖도록 한 칸을 더 둔다.
+  $('#editor-hl').innerHTML = highlightSql(text) + (text.endsWith('\n') || !text ? ' ' : '');
+  const lines = text.split('\n').length;
+  $('#editor-gutter').textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+  syncEditorScroll();
+}
+
+function syncEditorScroll() {
+  const pre = $('.code-hl');
+  pre.scrollTop = editor.scrollTop;
+  pre.scrollLeft = editor.scrollLeft;
+  $('#editor-gutter').scrollTop = editor.scrollTop;
 }
 
 // ---------- 퀴즈 공통 ----------
@@ -511,7 +594,7 @@ async function importBackup(file) {
     save();
     sessions.quiz = null;
     sessions.wrong = null;
-    editor.value = state.sql || DEFAULT_SQL;
+    setEditorText(state.sql || DEFAULT_SQL);
     render();
     toast('백업을 불러왔어요.');
   } catch (err) {
@@ -578,12 +661,17 @@ async function loadCards() {
 
 async function start() {
   renderSchema();
-  editor.value = state.sql || DEFAULT_SQL;
+  setEditorText(state.sql || DEFAULT_SQL);
   let t;
   editor.addEventListener('input', () => {
+    syncEditor();
     clearTimeout(t);
     t = setTimeout(() => { state.sql = editor.value; save(); }, 400);
   });
+  editor.addEventListener('scroll', syncEditorScroll);
+  // 폰에서는 탐색기를 접은 채로 시작한다.
+  setTreeOpen(!isNarrow());
+  $('#btn-tree').addEventListener('click', () => setTreeOpen($('#app').classList.contains('tree-hidden')));
   document.addEventListener('keydown', onKeydown);
   for (const b of document.querySelectorAll('.tabs [data-tab]')) b.addEventListener('click', () => setTab(b.dataset.tab));
   $('#btn-run').addEventListener('click', runEditor);

@@ -2,6 +2,7 @@
 // 직접 볼 때: python serve.py 후 http://localhost:8000/tests/test.html
 import * as L from '../lib/logic.js';
 import { createSampleDb } from '../lib/sample-db.js';
+import { tokenizeSql, highlightSql } from '../lib/highlight.js';
 
 const results = [];
 const tests = [];
@@ -209,7 +210,45 @@ test('백업: 다른 파일·깨진 파일은 거절', () => {
 
 test('normalizeState: 이상한 값은 빈 상태로', () => {
   eq(L.normalizeState(null), L.emptyState());
-  eq(L.normalizeState({ wrong: [1, 2], daily: { date: 3 }, sql: 5 }), L.emptyState());
+  eq(L.normalizeState({ wrong: [1, 2], daily: { date: 3 }, sql: 5, solved: [1], activity: { date: 1 } }), L.emptyState());
+  eq(L.normalizeState({ wrong: {}, solved: { 'a#1': 5 }, activity: { date: '2026-10-19', count: 3 } }).activity, { date: '2026-10-19', count: 3 });
+});
+
+test('진도: 맞힌 문제 기록, 오늘 푼 문제 수, 단원 완료와 전체 진도율', () => {
+  const s = L.emptyState();
+  const unit = { name: 'U', cards: [{ id: 'c', quiz: [{ answer: 1 }, { answer: 2 }] }] };
+  const qs = [{ id: 'c#1', answer: 1 }, { id: 'c#2', answer: 2 }];
+  const day = Date.UTC(2026, 9, 19, 3);
+  eq(L.unitProgress(s, unit), { total: 2, solved: 0, done: false });
+  L.recordAnswer(s, qs[0], 1, day);
+  L.recordAnswer(s, qs[1], 1, day);
+  eq(L.unitProgress(s, unit), { total: 2, solved: 1, done: false }, '하나 맞히고 하나 틀림');
+  eq(L.todayCount(s, L.dateKey(new Date(day))), 2, '맞히든 틀리든 푼 문제는 센다');
+  eq(L.todayCount(s, '2026-10-20'), 0, '다른 날은 0');
+  L.recordAnswer(s, qs[1], 2, day);
+  eq(L.unitProgress(s, unit), { total: 2, solved: 2, done: true }, '모두 맞히면 완료');
+  eq(L.overallProgress(s, qs), { total: 2, solved: 2, percent: 100 });
+  L.recordAnswer(s, qs[0], 2, day);
+  eq(L.unitProgress(s, unit).done, false, '다시 틀려 오답노트에 있으면 완료가 풀린다');
+  eq(L.overallProgress(s, qs).percent, 50);
+  eq(L.todayCount(s, L.dateKey(new Date(day))), 4);
+  L.recordAnswer(s, qs[0], 1, day + 86400000);
+  eq(L.todayCount(s, L.dateKey(new Date(day + 86400000))), 1, '날짜가 바뀌면 새로 센다');
+  eq(L.unitProgress(s, { name: 'E', cards: [] }), { total: 0, solved: 0, done: false }, '빈 단원은 완료가 아니다');
+});
+
+test('문법 색칠: 키워드·문자열·숫자·함수·주석을 나누고 HTML을 이스케이프', () => {
+  const types = (sql) => tokenizeSql(sql).filter((t) => t.type !== 'space').map((t) => `${t.type}:${t.text}`);
+  eq(types("SELECT 이름, COUNT(*) FROM 사원 WHERE 직급 = 'O''Neil' AND 급여 >= 3000.5 -- 주석"), [
+    'keyword:SELECT', 'plain:이름', 'op:,', 'func:COUNT', 'op:(', 'op:*', 'op:)', 'keyword:FROM', 'plain:사원',
+    'keyword:WHERE', 'plain:직급', 'op:=', "string:'O''Neil'", 'keyword:AND', 'plain:급여', 'op:>=', 'number:3000.5',
+    'comment:-- 주석']);
+  eq(types('select 1 /* a\nb */ from dual'), ['keyword:select', 'number:1', 'comment:/* a\nb */', 'keyword:from', 'keyword:dual']);
+  eq(types('"연 급여"'), ['ident:"연 급여"']);
+  eq(highlightSql("SELECT '<b>' a"), '<span class="tok-keyword">SELECT</span> <span class="tok-string">\'&lt;b&gt;\'</span> a');
+  eq(tokenizeSql("WHERE x = 'unterminated").at(-1).type, 'string', '닫히지 않은 문자열도 끝까지');
+  const text = 'SELECT 1;\n\nSELECT 2;';
+  eq(tokenizeSql(text).map((t) => t.text).join(''), text, '토큰을 이으면 원문 그대로');
 });
 
 // ---------- 예제 DB (sql.js) ----------
@@ -970,23 +1009,13 @@ async function reload(frame) {
   await frame.contentWindow.appReady;
 }
 
-// 과목 목록을 돌며 이름이 prefix로 시작하는 단원을 찾아 고른다.
+// 탐색기 트리에서 이름이 prefix로 시작하는 단원을 눌러 연다.
 function pickUnit(frame, prefix) {
-  const w = frame.contentWindow;
   const d = frame.contentDocument;
-  const subjects = d.querySelector('#pick-subject');
-  for (const opt of [...subjects.options]) {
-    subjects.value = opt.value;
-    subjects.dispatchEvent(new w.Event('change', { bubbles: true }));
-    const units = d.querySelector('#pick-unit');
-    const found = [...units.options].find((o) => o.textContent.startsWith(prefix));
-    if (found) {
-      units.value = found.value;
-      units.dispatchEvent(new w.Event('change', { bubbles: true }));
-      return;
-    }
-  }
-  throw new Error(`단원 없음: ${prefix}`);
+  const found = [...d.querySelectorAll('#tree .tree-unit')]
+    .find((b) => b.querySelector('.tree-name').textContent.startsWith(prefix));
+  if (!found) throw new Error(`단원 없음: ${prefix}`);
+  found.click();
 }
 
 function key(win, target, k, opts = {}) {
@@ -1012,13 +1041,103 @@ test('화면: 폰 너비에서는 위아래로 쌓임, 가로 스크롤 없음',
   assert(d.documentElement.scrollWidth <= 390, `가로 넘침 ${d.documentElement.scrollWidth}`);
 });
 
+test('IDE 화면: 탐색기·탭·상태 표시줄, 폰에서는 탐색기를 접고 펼친다', async () => {
+  const wide = await openApp('e2e-ide-wide', 1280, 800);
+  const d = wide.contentDocument;
+  const tree = d.querySelector('#explorer').getBoundingClientRect();
+  const main = d.querySelector('.panel-left').getBoundingClientRect();
+  assert(tree.width > 0 && tree.right <= main.left, '노트북: 탐색기가 왼쪽에 보인다');
+  const firstUnit = d.querySelector('#tree .tree-unit');
+  eq(firstUnit.querySelector('.tree-count').textContent, '7', '단원 옆 카드 수');
+  assert(d.querySelector('#st-progress').textContent.startsWith('진도 0%'), d.querySelector('#st-progress').textContent);
+  eq(d.querySelector('#st-today').textContent, '오늘 푼 문제 0');
+  d.querySelector('#btn-tree').click();
+  eq(d.querySelector('#explorer').getBoundingClientRect().width, 0, '노트북에서도 탐색기를 접을 수 있다');
+
+  const phone = await openApp('e2e-ide-phone', 390, 844);
+  const p = phone.contentDocument;
+  eq(p.querySelector('#explorer').getBoundingClientRect().height, 0, '폰: 처음엔 탐색기가 접혀 있다');
+  eq(p.querySelector('#btn-tree').getAttribute('aria-expanded'), 'false');
+  p.querySelector('#btn-tree').click();
+  assert(p.querySelector('#explorer').getBoundingClientRect().height > 100, '폰: 펼치면 보인다');
+  pickUnit(phone, 'ORDER BY');
+  eq(p.querySelector('#explorer').getBoundingClientRect().height, 0, '폰: 단원을 고르면 다시 접힌다');
+  eq(p.querySelector('#view-cards .card').dataset.card, 'order-basic');
+  assert(p.documentElement.scrollWidth <= 390, `가로 넘침 ${p.documentElement.scrollWidth}`);
+});
+
+test('IDE 화면: 단원의 문제를 모두 맞히면 트리에 완료 표시, 상태 표시줄 숫자가 바뀐다', async () => {
+  const data = await (await fetch('../data/cards.json')).json();
+  const byText = new Map(L.collectQuestions(data).map((q) => [q.q, q]));
+  const f = await openApp('e2e-progress', 1280, 900);
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  pickUnit(f, 'Top N');
+  const unitBtn = () => d.querySelector('#tree .tree-unit[aria-current="true"]');
+  const cardCount = d.querySelectorAll('.card-nav button').length;
+  for (let c = 0; c < cardCount; c++) {
+    for (let k = 0; k < 2; k++) {
+      const q = byText.get(d.querySelector('.card-quiz .question').textContent);
+      key(w, d.body, String(q.answer));
+      key(w, d.body, 'Enter');
+    }
+    if (c < cardCount - 1) key(w, d.body, 'ArrowRight');
+  }
+  eq(unitBtn().dataset.done, 'true', 'Top N 단원 완료');
+  eq(unitBtn().querySelector('.tree-mark').textContent, '✓');
+  eq(d.querySelector('#st-today').textContent, `오늘 푼 문제 ${cardCount * 2}`);
+  assert(d.querySelector('#st-progress').textContent.includes(`(${cardCount * 2}/`), d.querySelector('#st-progress').textContent);
+});
+
+test('IDE 화면: 연습창 줄 번호와 문법 색, 카드 예시 SQL 색칠, 오라클 경고 구역', async () => {
+  const f = await openApp('e2e-editor', 1280, 900);
+  const d = f.contentDocument;
+  pickUnit(f, 'SELECT 기본과 WHERE');
+  const card = d.querySelector('#view-cards .card');
+  assert(card.querySelector('pre.sql .tok-keyword'), '카드 예시 SQL에 키워드 색');
+  eq(card.querySelectorAll('pre.sql .line').length, 2, '예시 SQL 줄마다 줄 번호');
+  card.querySelector('[data-send]').click();
+  eq(d.querySelector('#editor-gutter').textContent, '1\n2', '연습창 줄 번호');
+  eq([...d.querySelectorAll('#editor-hl .tok-keyword')].map((e) => e.textContent), ['SELECT', 'FROM']);
+  const oracle = card.querySelector('.sec-oracle');
+  eq(getComputedStyle(oracle).borderLeftColor, 'rgb(232, 196, 106)', '오라클 구역 왼쪽 줄은 경고색(--warn)');
+  eq(getComputedStyle(oracle).borderLeftWidth, '3px', '오라클 구역 왼쪽 줄 두께');
+  assert(getComputedStyle(d.querySelector('#editor-hl')).fontFamily.includes('D2Coding'), '연습창 고정폭 글꼴');
+  await waitFor(() => d.fonts.check('16px D2Coding', '가'), 'D2Coding 글꼴을 내려받음');
+});
+
+test('IDE 화면: 글자와 배경의 대비가 4.5:1 이상', async () => {
+  const f = await openApp('e2e-contrast', 1280, 800);
+  const root = getComputedStyle(f.contentDocument.documentElement);
+  const v = (name) => root.getPropertyValue(name).trim();
+  const lum = (hex) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const pairs = [
+    ['--text', '--bg'], ['--text', '--bg-side'], ['--text', '--bg-panel'], ['--text', '--bg-elev'], ['--text', '--bg-term'],
+    ['--muted', '--bg'], ['--muted', '--bg-side'], ['--muted', '--bg-elev'], ['--muted', '--bg-term'],
+    ['--accent', '--bg'], ['--accent', '--bg-elev'], ['--gutter', '--bg-term'],
+    ['--tok-keyword', '--bg-term'], ['--tok-string', '--bg-term'], ['--tok-number', '--bg-term'], ['--tok-func', '--bg-term'],
+    ['--tok-comment', '--bg'], ['--tok-comment', '--bg-term'], ['--tok-comment', '--bg-side'],
+    ['--warn', '--warn-bg'], ['--text', '--warn-bg'], ['--ok', '--ok-bg'], ['--bad', '--bad-bg'], ['--bad', '--bg-term'],
+    ['--primary-text', '--primary'],
+  ];
+  const low = pairs.map(([a, b]) => [a, b, ratio(v(a), v(b))]).filter(([, , r]) => r < 4.5);
+  eq(low.map(([a, b, r]) => `${a}/${b} ${r.toFixed(2)}`), [], '대비 부족');
+});
+
 test('카드: 단원을 바꾸고, 예시 SQL을 연습창으로 보내고, Ctrl+Enter로 실행', async () => {
   const f = await openApp('e2e-cards', 1280, 800);
   const w = f.contentWindow;
   const d = f.contentDocument;
+  eq(d.querySelectorAll('#tree .tree-subject').length, 2, '과목 폴더 2개');
+  eq(d.querySelectorAll('#tree .tree-group').length, 5, '주요항목 5개(1과목 2, 2과목 3)');
+  eq(d.querySelectorAll('#tree .tree-unit[data-subject="1"]').length, 19, '2과목 단원 19개');
   pickUnit(f, 'GROUP BY');
-  eq(d.querySelectorAll('#pick-unit optgroup').length, 3, '2과목 주요항목 3개');
-  eq(d.querySelectorAll('#pick-unit option').length, 19, '2과목 단원 19개');
+  assert(d.querySelector('#tree .tree-unit[aria-current="true"] .tree-name').textContent.startsWith('GROUP BY'), '고른 단원 표시');
   await waitFor(() => d.querySelector('[data-card="group-aggregate"]'), 'GROUP BY 단원 첫 카드');
   [...d.querySelectorAll('.card-nav button')].find((b) => b.textContent.includes('HAVING')).click();
   const card = await waitFor(() => d.querySelector('[data-card="group-by-having"]'), '카드 목록에서 HAVING 카드로');

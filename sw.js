@@ -1,5 +1,5 @@
 // 앱 파일(아래 ASSETS, data/cards.json 포함)을 바꾸면 VERSION을 꼭 올린다. 규칙은 CLAUDE.md 참고.
-const VERSION = 'v32';
+const VERSION = 'v33';
 const CACHE = `sqld-study-${VERSION}`;
 
 // 오프라인에서 열리려면 앱이 쓰는 파일이 전부 여기 있어야 한다(tests/run_tests.py가 검사).
@@ -10,11 +10,13 @@ const ASSETS = [
   'app.js',
   'lib/logic.js',
   'lib/sample-db.js',
+  'lib/highlight.js',
   'data/cards.json',
   'vendor/sql-wasm.js',
   'vendor/sql-wasm.wasm',
   'manifest.webmanifest',
   'icon.svg',
+  'fonts/D2Coding-Ver1.3.2-20180524.ttf',
 ];
 
 self.addEventListener('install', (event) => {
