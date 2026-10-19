@@ -99,6 +99,7 @@ const DONE_UNITS = [
   '데이터모델의 이해',
   '엔터티',
   '속성',
+  '관계',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -825,6 +826,15 @@ test('DCL 단원: SQLite에는 사용자·권한 문장이 없음', async () => 
     'REVOKE SELECT ON 사원 FROM kim', 'CREATE ROLE 조회담당', 'GRANT SELECT ON 사원 TO kim WITH GRANT OPTION']) {
     assert(fails(bad), `SQLite에서 안 돼야 함: ${bad}`);
   }
+  db.close();
+});
+
+test('관계 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, rows } = await seededDb();
+  eq(rows('SELECT d.부서번호, COUNT(e.사원번호) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 GROUP BY d.부서번호 ORDER BY 1'),
+    [[10, 2], [20, 4], [30, 4], [40, 0]], '부서별 사원 수(1:M, 0명 포함)');
+  eq(rows('SELECT d.부서명 FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 WHERE e.사원번호 IS NULL').flat(), ['연구'], '부서 쪽 선택 관계');
+  eq(rows('SELECT 이름 FROM 사원 WHERE 부서번호 IS NULL').flat(), ['오인턴'], '사원 쪽 선택 관계');
   db.close();
 });
 
