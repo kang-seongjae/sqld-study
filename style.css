@@ -163,7 +163,7 @@ pre.sql {
 .card-quiz { margin-top: 12px; }
 .figure { margin: 0 0 12px; }
 .figure .table-wrap { max-height: none; margin-bottom: 4px; }
-.figure table.result td { white-space: normal; }
+.figure table.result td { white-space: normal; word-break: keep-all; }
 .figure-note { font-size: 0.85rem; color: var(--muted); }
 pre.diagram {
   margin: 0;
