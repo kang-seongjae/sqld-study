@@ -7,7 +7,8 @@
 
 - `index.html`, `style.css`, `app.js`: 화면과 동작. 왼쪽 패널(개념 카드·오늘의 퀴즈·오답노트 탭), 오른쪽 SQL 연습창
 - `lib/logic.js`: 퀴즈 뽑기·오답노트·백업·카드 검사 같은 순수 로직(DOM 없음). 로직은 여기에 두고 테스트한다
-- `lib/sample-db.js`: 예제 테이블(사원, 부서) 생성 SQL
+- `lib/sample-db.js`: 예제 테이블(사원, 부서, 급여등급) 생성 SQL과 `createSampleDb()`.
+  연습창·카드 결과·테스트는 모두 `createSampleDb()`로 DB를 만든다(REGEXP 연산자용 `regexp()` 함수를 여기서 등록).
 - `data/cards.json`: 카드와 퀴즈 내용. 형식은 `data/README.md`
 - `vendor/sql-wasm.js`, `vendor/sql-wasm.wasm`: sql.js 1.10.3 (오프라인용으로 저장소에 포함, CDN 사용 금지)
 - `sw.js`: 오프라인 캐시(캐시 우선)

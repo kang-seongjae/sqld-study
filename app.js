@@ -1,5 +1,5 @@
 import * as L from './lib/logic.js';
-import { SEED_SQL, TABLE_INFO } from './lib/sample-db.js';
+import { createSampleDb, TABLE_INFO } from './lib/sample-db.js';
 
 // ?ns=이름 으로 열면 기록을 따로 저장한다(테스트가 실제 기록을 건드리지 않게).
 const NS = new URLSearchParams(location.search).get('ns');
@@ -204,6 +204,9 @@ function renderCard(c, subject, unit) {
     c.summary && h('p', { class: 'summary' }, c.summary),
     c.desc && section('sec-desc', '쉽게 풀어 보면', h('p', { class: 'desc' }, c.desc)),
     c.analogy && section('sec-analogy', '비유로 이해하기', h('p', {}, c.analogy)),
+    (c.figures?.length > 0 || c.diagram) && section('sec-figure', '표와 그림으로 보기',
+      (c.figures || []).map(figureNodes),
+      c.diagram && h('pre', { class: 'diagram' }, c.diagram)),
     c.sql && section('sec-sql', '예시 SQL',
       h('pre', { class: 'sql' }, h('code', {}, c.sql)),
       h('div', { class: 'card-actions' },
@@ -234,17 +237,29 @@ function renderCard(c, subject, unit) {
   return card;
 }
 
+// 1과목처럼 SQL 대신 표로 설명하는 카드용. 실행 결과 표와 같은 모양으로 그린다.
+function figureNodes(f) {
+  return h('figure', { class: 'figure' },
+    f.title && h('figcaption', { class: 'sub-title' }, f.title),
+    h('div', { class: 'table-wrap' }, h('table', { class: 'result' },
+      h('thead', {}, h('tr', {}, f.columns.map((c) => h('th', {}, c)))),
+      h('tbody', {}, f.rows.map((row) => h('tr', {}, row.map((v) => (v === null
+        ? h('td', { class: 'null' }, 'NULL')
+        : h('td', {}, String(v))))))))),
+    f.note && h('p', { class: 'figure-note' }, f.note));
+}
+
 function exampleResultNodes(sql) {
   if (!SQL) return h('p', { class: 'result-msg' }, 'SQL 엔진을 불러오는 중이에요…');
   if (!exampleCache.has(sql)) {
-    const ref = new SQL.Database();
+    let ref;
     try {
-      ref.exec(SEED_SQL);
+      ref = createSampleDb(SQL);
       exampleCache.set(sql, { sets: ref.exec(sql), changes: ref.getRowsModified() });
     } catch (err) {
       exampleCache.set(sql, { error: err.message });
     } finally {
-      ref.close();
+      ref?.close();
     }
   }
   const r = exampleCache.get(sql);
@@ -424,8 +439,7 @@ function renderSchema() {
 
 function resetDb() {
   if (db) db.close();
-  db = new SQL.Database();
-  db.exec(SEED_SQL);
+  db = createSampleDb(SQL);
 }
 
 function showResult(...nodes) {

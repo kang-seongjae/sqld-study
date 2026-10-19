@@ -161,6 +161,20 @@ pre.sql {
 .sub-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
 .sec-exam { border-top: 1px dashed var(--line); padding-top: 14px; }
 .card-quiz { margin-top: 12px; }
+.figure { margin: 0 0 12px; }
+.figure .table-wrap { max-height: none; margin-bottom: 4px; }
+.figure table.result td { white-space: normal; }
+.figure-note { font-size: 0.85rem; color: var(--muted); }
+pre.diagram {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
 .card-quiz .question { font-size: 1.05rem; }
 .card-quiz .quiz-head .crumb { display: none; }
 .card-actions .meta { color: var(--muted); font-size: 0.85rem; }

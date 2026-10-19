@@ -1,7 +1,7 @@
 // 브라우저에서 도는 테스트. tests/run_tests.py가 헤드리스 Chrome으로 열어 결과를 읽는다.
 // 직접 볼 때: python serve.py 후 http://localhost:8000/tests/test.html
 import * as L from '../lib/logic.js';
-import { SEED_SQL } from '../lib/sample-db.js';
+import { createSampleDb } from '../lib/sample-db.js';
 
 const results = [];
 const tests = [];
@@ -94,7 +94,9 @@ test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달
     assert(unit, `단원 없음: ${name}`);
     assert(unit.cards.length >= 5 && unit.cards.length <= 8, `${name}: 카드 ${unit.cards.length}장`);
     for (const c of unit.cards) {
-      for (const k of ['summary', 'desc', 'analogy', 'sql', 'exam']) assert(c[k], `${c.id}: ${k} 없음`);
+      for (const k of ['summary', 'desc', 'analogy', 'exam']) assert(c[k], `${c.id}: ${k} 없음`);
+      // 실행할 SQL이 없는 내용(1과목, DCL 등)은 예시 SQL 대신 표나 글자 그림으로 보여 준다.
+      assert(c.sql || c.figures?.length || c.diagram, `${c.id}: 예시 SQL이나 표·그림 없음`);
       assert(c.pitfalls?.length > 0, `${c.id}: pitfalls 없음`);
       // oracle은 실제로 다른 점이 있을 때만 쓴다(없으면 '오라클과 다름' 표시도 안 붙는다).
       eq(c.quiz?.length, 2, `${c.id} 문제 수`);
@@ -121,6 +123,16 @@ test('validateCards: 카드 항목의 모양(문자열/배열)을 검사', () =>
   ] }] }] };
   const errs = L.validateCards(bad).join('\n');
   for (const k of ['group', 'summary', 'pitfalls', 'oracle']) assert(errs.includes(k), `${k}: ${errs}`);
+  const figs = { subjects: [{ name: 'S', units: [{ name: 'U', cards: [
+    { id: 'b', title: 'B', diagram: ['x'], figures: [{ columns: ['가', '나'], rows: [['1', 2], ['1']] }, { columns: [], rows: 'x' }] },
+    { id: 'c', title: 'C', figures: [{ title: '좋은 표', columns: ['가'], rows: [['1'], [null], [3]], note: '설명' }], diagram: 'A ── B' },
+  ] }] }] };
+  const ferrs = L.validateCards(figs);
+  assert(ferrs.some((e) => e.includes('cards[0]') && e.includes('diagram')), ferrs.join('\n'));
+  assert(ferrs.some((e) => e.includes('figures[0]') && e.includes('칸 수')), ferrs.join('\n'));
+  assert(ferrs.some((e) => e.includes('figures[1]') && e.includes('columns')), ferrs.join('\n'));
+  assert(ferrs.some((e) => e.includes('figures[1]') && e.includes('rows')), ferrs.join('\n'));
+  assert(!ferrs.some((e) => e.includes('cards[1]')), `올바른 표·그림은 통과: ${ferrs.join('\n')}`);
 });
 
 test('recordAnswer: 틀리면 오답노트에 쌓이고 맞히면 빠짐', () => {
@@ -182,8 +194,7 @@ test('normalizeState: 이상한 값은 빈 상태로', () => {
 
 test('예제 DB: 사원 11명, 부서 4개, 외부 조인으로 사원 없는 부서도 나옴', async () => {
   const SQL = await initSqlJs({ locateFile: (f) => `../vendor/${f}` });
-  const db = new SQL.Database();
-  db.exec(SEED_SQL);
+  const db = createSampleDb(SQL);
   eq(db.exec('SELECT COUNT(*) FROM 사원')[0].values, [[11]]);
   eq(db.exec('SELECT COUNT(*) FROM 부서')[0].values, [[4]]);
   const r = db.exec('SELECT d.부서명 FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 WHERE e.사원번호 IS NULL');
@@ -196,8 +207,7 @@ test('예제 카드의 SQL이 모두 예제 DB에서 실행됨', async () => {
   const data = await (await fetch('../data/cards.json')).json();
   for (const s of data.subjects) for (const u of s.units) for (const c of u.cards) {
     if (!c.sql) continue;
-    const db = new SQL.Database();
-    db.exec(SEED_SQL);
+    const db = createSampleDb(SQL);
     try { db.exec(c.sql); } catch (e) { throw new Error(`${c.id}: ${e.message}`); }
     db.close();
   }
@@ -205,8 +215,7 @@ test('예제 카드의 SQL이 모두 예제 DB에서 실행됨', async () => {
 
 test('카드에 적은 SQLite 쪽 동작이 연습창 엔진(sql.js)에서 사실임', async () => {
   const SQL = await initSqlJs({ locateFile: (f) => `../vendor/${f}` });
-  const db = new SQL.Database();
-  db.exec(SEED_SQL);
+  const db = createSampleDb(SQL);
   const one = (sql) => db.exec(sql)[0].values[0];
   eq(one('SELECT 1 + 1'), [2], 'FROM 없이 SELECT');
   eq(one('SELECT 7 / 2, 7 / 2.0'), [3, 3.5], '정수 나눗셈');
@@ -235,6 +244,9 @@ test('카드에 적은 SQLite 쪽 동작이 연습창 엔진(sql.js)에서 사�
   db.exec('DELETE FROM 사원 WHERE 사원번호 >= 2000');
   eq(one('SELECT typeof(이름), typeof(급여), typeof(입사일), typeof(커미션) FROM 사원 WHERE 사원번호 = 1001'), ['text', 'integer', 'text', 'null']);
   eq(one('SELECT COUNT(*) FROM 사원, 부서'), [44], '곱집합 11 × 4');
+  // createSampleDb가 채워 둔 REGEXP 연산자(정규 표현식 단원)
+  eq(one("SELECT '김대표' REGEXP '^김', '이부장' REGEXP '^김', NULL REGEXP 'a'"), [1, 0, null]);
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 이름 REGEXP '(대리|사원)$'"), [5]);
   for (const bad of ['SELECT UNIQUE 직급 FROM 사원', 'SELECT 이름, DISTINCT 직급 FROM 사원', 'SELECT 사원.이름 FROM 사원 e',
     "INSERT INTO 사원 (사원번호, 이름) VALUES (1001, '중복')", 'INSERT INTO 사원 (사원번호, 이름) VALUES (2002, NULL)']) {
     let failed = false;
@@ -246,8 +258,7 @@ test('카드에 적은 SQLite 쪽 동작이 연습창 엔진(sql.js)에서 사�
 
 async function seededDb() {
   const SQL = await initSqlJs({ locateFile: (f) => `../vendor/${f}` });
-  const db = new SQL.Database();
-  db.exec(SEED_SQL);
+  const db = createSampleDb(SQL);
   return {
     db,
     one: (sql) => db.exec(sql)[0].values[0],
