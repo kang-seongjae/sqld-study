@@ -93,6 +93,7 @@ const DONE_UNITS = [
   'PIVOT 절과 UNPIVOT 절',
   '정규 표현식',
   'DML',
+  'TCL',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -707,6 +708,50 @@ test('DML 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
   eq(d.one('SELECT 부서명 FROM 부서 WHERE 부서번호 = 20'), ['플랫폼개발']);
   assert(d.fails("MERGE INTO 부서 d USING (SELECT 20 AS 부서번호) s ON (d.부서번호 = s.부서번호) WHEN MATCHED THEN UPDATE SET d.지역 = '서울'"), 'MERGE 없음');
   d.db.close();
+});
+
+test('TCL 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  // 트랜잭션으로 묶은 두 UPDATE
+  db.exec("BEGIN; UPDATE 사원 SET 커미션 = 커미션 - 200 WHERE 이름 = '박부장'; UPDATE 사원 SET 커미션 = 커미션 + 200 WHERE 이름 = '조대리'; COMMIT");
+  eq(rows("SELECT 커미션 FROM 사원 WHERE 이름 IN ('박부장', '조대리') ORDER BY 사원번호").flat(), [300, 400]);
+  eq(one('SELECT SUM(커미션) FROM 사원'), [1000], '합계 그대로');
+  // ROLLBACK
+  db.exec('BEGIN; DELETE FROM 사원 WHERE 부서번호 = 20');
+  eq(one('SELECT COUNT(*) FROM 사원'), [7], '삭제 직후');
+  db.exec('ROLLBACK');
+  eq(one('SELECT COUNT(*) FROM 사원'), [11], '롤백 후');
+  // SAVEPOINT
+  db.exec('BEGIN; UPDATE 사원 SET 급여 = 급여 + 100 WHERE 부서번호 = 10; SAVEPOINT sp1; DELETE FROM 사원 WHERE 부서번호 = 10; ROLLBACK TO SAVEPOINT sp1; COMMIT');
+  eq(rows('SELECT 급여 FROM 사원 WHERE 부서번호 = 10 ORDER BY 사원번호').flat(), [9100, 3200], '저장 지점까지만 되돌림');
+  // DDL도 SQLite에서는 롤백됨(오라클과 다름)
+  db.exec('BEGIN; UPDATE 사원 SET 급여 = 0 WHERE 사원번호 = 1001; CREATE TABLE 임시 (번호 INTEGER); ROLLBACK');
+  eq(one("SELECT (SELECT 급여 FROM 사원 WHERE 사원번호 = 1001), (SELECT COUNT(*) FROM sqlite_master WHERE name = '임시')"), [9100, 0]);
+  // 명시적 트랜잭션
+  db.exec('BEGIN TRANSACTION; UPDATE 사원 SET 급여 = 1 WHERE 사원번호 = 1001; ROLLBACK');
+  eq(one('SELECT 급여 FROM 사원 WHERE 사원번호 = 1001'), [9100]);
+  // 따라가기 카드와 문제
+  db.exec('CREATE TABLE 메모 (번호 INTEGER); BEGIN; INSERT INTO 메모 VALUES (1); SAVEPOINT a; INSERT INTO 메모 VALUES (2); SAVEPOINT b; INSERT INTO 메모 VALUES (3); ROLLBACK TO SAVEPOINT a; INSERT INTO 메모 VALUES (4); COMMIT');
+  eq(rows('SELECT 번호 FROM 메모 ORDER BY 번호').flat(), [1, 4]);
+  db.exec('CREATE TABLE t1 (v INTEGER); BEGIN; INSERT INTO t1 VALUES (10); SAVEPOINT s1; INSERT INTO t1 VALUES (20); SAVEPOINT s2; INSERT INTO t1 VALUES (30); ROLLBACK TO SAVEPOINT s2; COMMIT');
+  eq(one('SELECT SUM(v) FROM t1'), [30]);
+  db.exec('CREATE TABLE t2 (v INTEGER); BEGIN; INSERT INTO t2 VALUES (1); COMMIT; BEGIN; INSERT INTO t2 VALUES (2); SAVEPOINT s; INSERT INTO t2 VALUES (3); ROLLBACK; BEGIN; INSERT INTO t2 VALUES (4); COMMIT');
+  eq(rows('SELECT v FROM t2 ORDER BY v').flat(), [1, 4]);
+  db.exec('CREATE TABLE t3 (v INTEGER); BEGIN; INSERT INTO t3 VALUES (1); COMMIT; BEGIN; INSERT INTO t3 VALUES (2); INSERT INTO t3 VALUES (3); ROLLBACK');
+  eq(rows('SELECT v FROM t3').flat(), [1]);
+  assert(!fails('BEGIN; SAVEPOINT a; SAVEPOINT b; ROLLBACK TO SAVEPOINT b; ROLLBACK TO SAVEPOINT a; COMMIT'), 'b → a 순서는 됨');
+  assert(!fails('BEGIN; SAVEPOINT a; ROLLBACK TO SAVEPOINT a; ROLLBACK TO SAVEPOINT a; COMMIT'), '같은 지점 두 번');
+  // 오라클과 다르다고 적은 SQLite 동작(트랜잭션이 없는 상태에서)
+  assert(fails('ROLLBACK'), '트랜잭션 없는 ROLLBACK은 오류');
+  assert(fails('COMMIT'), '트랜잭션 없는 COMMIT은 오류');
+  assert(fails('COMMIT WORK'), 'WORK 없음');
+  assert(!fails('BEGIN; COMMIT TRANSACTION'), 'COMMIT TRANSACTION은 됨');
+  assert(!fails('CREATE TABLE r (v); SAVEPOINT s; INSERT INTO r VALUES (1); RELEASE s'), 'RELEASE 있음');
+  db.close();
+
+  const e = await seededDb();
+  assert(e.fails('BEGIN; SAVEPOINT a; SAVEPOINT b; ROLLBACK TO SAVEPOINT a; ROLLBACK TO SAVEPOINT b'), 'a로 되돌리면 b는 사라짐');
+  e.db.close();
 });
 
 // ---------- 실제 앱 화면 (iframe) ----------

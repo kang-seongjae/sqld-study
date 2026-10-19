@@ -3398,7 +3398,245 @@
             }
           ]
         },
-        { "group": "관리 구문", "name": "TCL", "cards": [] },
+        {
+          "group": "관리 구문",
+          "name": "TCL",
+          "cards": [
+            {
+              "id": "tcl-transaction",
+              "title": "트랜잭션과 ACID",
+              "summary": "트랜잭션은 '전부 되거나 전부 안 되거나' 해야 하는 작업 묶음이다. 원자성·일관성·고립성·지속성(ACID)을 지킨다.",
+              "desc": "박부장의 커미션 200을 조대리에게 넘긴다고 하자. '① 박부장 커미션 -200'과 '② 조대리 커미션 +200' 두 UPDATE가 필요하다. ①만 실행된 순간 장애가 나면 200이 사라져 버린다. 그래서 두 문장을 하나의 논리적인 작업 단위로 묶어 '둘 다 반영하거나, 둘 다 취소한다'. 이 단위가 트랜잭션(Transaction)이다.\n트랜잭션이 지켜야 할 네 가지 성질을 영어 앞 글자를 따서 ACID라고 부른다(아래 표).\n관계형 데이터베이스 개요 단원에서 본 TCL(COMMIT, ROLLBACK, SAVEPOINT)이 바로 트랜잭션을 다루는 명령이다. COMMIT은 묶음 전체를 확정하고, ROLLBACK은 묶음 전체를 취소한다.\n예시 SQL은 SQLite에서 BEGIN으로 트랜잭션을 시작해 두 UPDATE를 묶고 COMMIT한다. 옮긴 뒤에도 전체 커미션 합계(1000)는 그대로다.",
+              "analogy": "은행 이체와 같다. 내 통장에서 돈이 빠졌는데 상대 통장에 들어가지 않은 채로 끝나면 안 된다. 은행은 '출금 + 입금'을 한 덩어리로 처리해서, 중간에 문제가 생기면 출금까지 원래대로 돌려놓는다.",
+              "figures": [
+                {
+                  "title": "트랜잭션의 네 가지 성질(ACID)",
+                  "columns": ["성질", "뜻", "커미션 넘기기 예"],
+                  "rows": [
+                    ["원자성 (Atomicity)", "트랜잭션 안의 작업은 모두 반영되거나 모두 취소된다", "-200만 되고 +200은 안 된 채로 끝나는 일이 없다"],
+                    ["일관성 (Consistency)", "트랜잭션 전후 모두 데이터가 정해진 규칙(제약 조건 등)을 지킨다", "넘기기 전후로 커미션 합계가 1000으로 같다"],
+                    ["고립성 (Isolation)", "실행 중인 트랜잭션의 중간 상태를 다른 트랜잭션이 끼어들어 보거나 바꾸지 못한다", "-200만 된 순간의 값을 다른 사용자가 읽지 못한다"],
+                    ["지속성 (Durability)", "COMMIT된 결과는 장애가 나도 사라지지 않는다", "COMMIT 직후 서버가 꺼져도 300, 400이 남는다"]
+                  ]
+                }
+              ],
+              "sql": "BEGIN;\n\nUPDATE 사원 SET 커미션 = 커미션 - 200 WHERE 이름 = '박부장';\nUPDATE 사원 SET 커미션 = 커미션 + 200 WHERE 이름 = '조대리';\n\nCOMMIT;\n\nSELECT 이름, 커미션\nFROM 사원\nWHERE 이름 IN ('박부장', '조대리')\nORDER BY 사원번호;\n\nSELECT SUM(커미션) AS 커미션합계 FROM 사원;",
+              "pitfalls": [
+                "트랜잭션은 SQL 문장 하나가 아니라 '함께 성공하거나 함께 취소되어야 하는' 문장 묶음이다. 예시처럼 UPDATE 두 개가 한 트랜잭션일 수 있다.",
+                "ACID의 네 단어와 뜻을 짝짓는 문제가 많다. 원자성은 '전부 아니면 전무', 고립성은 '서로 끼어들지 않음', 지속성은 '확정되면 영구'로 기억하자.",
+                "SELECT만 하는 문장은 데이터를 바꾸지 않으므로 COMMIT이나 ROLLBACK으로 확정하거나 취소할 변경이 없다."
+              ],
+              "oracle": [
+                "트랜잭션 시작: 오라클은 시작 명령 없이 첫 DML을 실행하는 순간 트랜잭션이 저절로 시작되고, COMMIT이나 ROLLBACK을 할 때까지 이어진다. SQLite는 BEGIN을 쓰지 않으면 문장 하나하나가 그 자리에서 바로 확정된다(자동 커밋). 그래서 연습창에서 트랜잭션을 연습하려면 BEGIN을 먼저 쓴다."
+              ],
+              "exam": "ACID 각 성질의 이름과 설명을 짝짓는 문제가 거의 매회 나온다. 특히 원자성과 고립성의 설명을 바꿔 놓고 고르게 한다.",
+              "quiz": [
+                {
+                  "q": "계좌 이체 중 출금은 되었는데 입금 직전에 장애가 났다. 이때 출금까지 취소되어야 한다는 트랜잭션의 성질은?",
+                  "choices": ["원자성", "일관성", "고립성", "지속성"],
+                  "answer": 1,
+                  "explain": "원자성은 트랜잭션 안의 작업이 모두 반영되거나 모두 취소되어야 한다는 성질이다. 출금과 입금은 한 묶음이므로, 입금이 안 되면 출금도 취소되어야 한다."
+                },
+                {
+                  "q": "트랜잭션의 성질과 설명의 짝으로 옳지 않은 것은?",
+                  "choices": ["원자성 - 트랜잭션의 작업은 모두 반영되거나 모두 취소된다", "고립성 - 실행 중인 트랜잭션의 중간 결과를 다른 트랜잭션이 볼 수 없다", "지속성 - COMMIT된 결과는 장애가 나도 유지된다", "일관성 - 트랜잭션은 다른 트랜잭션과 동시에 실행될 수 없다"],
+                  "answer": 4,
+                  "explain": "일관성은 트랜잭션 전후로 데이터가 정해진 규칙(제약 조건 등)을 지킨다는 뜻이다. 여러 트랜잭션은 동시에 실행될 수 있고, 서로 끼어들지 않게 하는 것은 고립성이다."
+                }
+              ]
+            },
+            {
+              "id": "tcl-commit-rollback",
+              "title": "COMMIT과 ROLLBACK",
+              "summary": "COMMIT은 트랜잭션의 변경을 확정해 모두에게 보이게 하고, ROLLBACK은 마지막 COMMIT 이후의 변경을 모두 취소한다.",
+              "desc": "DML 단원에서 INSERT·UPDATE·DELETE를 실행해도 오라클에서는 아직 '확정 전' 상태라고 했다. 이 상태를 끝내는 명령이 COMMIT과 ROLLBACK이다.\n· COMMIT: 지금까지의 변경을 데이터베이스에 영구히 반영한다. 다른 사용자도 바뀐 값을 보게 되고, 바꾸던 행에 걸린 잠금이 풀린다. COMMIT한 뒤에는 ROLLBACK으로 되돌릴 수 없다.\n· ROLLBACK: 마지막 COMMIT 이후의 변경을 모두 취소하고 그 시점으로 되돌린다. 잠금도 풀린다.\nCOMMIT하기 전의 데이터는 특별한 상태다(아래 표). 바꾼 본인은 바뀐 값을 보지만, 다른 사용자는 바뀌기 전 값을 본다. 바꾸는 중인 행에는 잠금(LOCK)이 걸려서, 다른 사용자가 같은 행을 고치려 하면 COMMIT이나 ROLLBACK으로 잠금이 풀릴 때까지 기다린다.\n예시 SQL은 20번 부서 4명을 지운 직후 7명이 남은 것을 확인하고, ROLLBACK으로 되돌려 다시 11명이 된 것을 보여 준다.",
+              "analogy": "문서 편집기의 '저장'과 '저장하지 않고 닫기'와 같다. 저장(COMMIT)하기 전에는 고친 내용이 내 화면에만 보이고, 저장하지 않고 닫으면(ROLLBACK) 마지막으로 저장한 상태로 돌아간다.",
+              "figures": [
+                {
+                  "title": "COMMIT 전과 후 (오라클 기준)",
+                  "columns": ["구분", "COMMIT 전", "COMMIT 후"],
+                  "rows": [
+                    ["바꾼 본인이 조회하면", "바뀐 값", "바뀐 값"],
+                    ["다른 사용자가 조회하면", "바뀌기 전 값", "바뀐 값"],
+                    ["바꾸는 중인 행", "잠금이 걸려 다른 사용자가 고칠 수 없음", "잠금이 풀림"],
+                    ["ROLLBACK", "가능", "불가"]
+                  ]
+                }
+              ],
+              "sql": "BEGIN;\n\nDELETE FROM 사원 WHERE 부서번호 = 20;\nSELECT COUNT(*) AS 삭제직후 FROM 사원;\n\nROLLBACK;\n\nSELECT COUNT(*) AS 롤백후 FROM 사원;",
+              "pitfalls": [
+                "ROLLBACK은 '바로 앞 문장 하나'가 아니라 마지막 COMMIT 이후의 변경 전체를 취소한다.",
+                "COMMIT 전에도 바꾼 본인에게는 바뀐 값이 보인다. 다른 사용자에게 보이지 않을 뿐이다.",
+                "COMMIT한 변경은 ROLLBACK으로 되돌릴 수 없다. 되돌리려면 반대 작업(다시 UPDATE 등)을 새로 해야 한다."
+              ],
+              "oracle": [
+                "변경이 없을 때: 오라클은 되돌릴 변경이 없어도 COMMIT, ROLLBACK을 오류 없이 받아 준다. SQLite는 BEGIN으로 시작한 트랜잭션이 없으면 'no transaction is active' 오류를 낸다.",
+                "WORK: 오라클은 COMMIT WORK, ROLLBACK WORK처럼 WORK를 붙여도 되지만 SQLite에서는 문법 오류다(SQLite는 대신 COMMIT TRANSACTION처럼 쓸 수 있다)."
+              ],
+              "exam": "INSERT·UPDATE·DELETE와 COMMIT·ROLLBACK을 섞은 순서를 주고 최종 행 수나 값을 묻는 문제가 많다. COMMIT 전에 다른 사용자에게 보이는 값을 묻기도 한다.",
+              "quiz": [
+                {
+                  "q": "빈 테이블에서 오라클로 ① INSERT (1) ② COMMIT ③ INSERT (2) ④ INSERT (3) ⑤ ROLLBACK 을 차례로 실행했다. 테이블에 남은 값은?",
+                  "choices": ["없음", "1", "1, 2", "1, 2, 3"],
+                  "answer": 2,
+                  "explain": "ROLLBACK은 마지막 COMMIT(②) 이후의 변경인 2와 3을 모두 취소한다. ②에서 확정된 1만 남는다."
+                },
+                {
+                  "q": "사용자 A가 UPDATE로 급여를 바꾸고 아직 COMMIT하지 않았다. 이때의 설명으로 옳은 것은?",
+                  "choices": ["사용자 B가 조회하면 바뀐 급여가 보인다", "사용자 A가 조회하면 바뀌기 전 급여가 보인다", "사용자 B가 같은 행을 UPDATE하려 하면 A가 COMMIT이나 ROLLBACK할 때까지 기다린다", "A가 ROLLBACK해도 변경은 취소되지 않는다"],
+                  "answer": 3,
+                  "explain": "COMMIT 전에는 바꾼 행에 잠금이 걸려 다른 사용자가 같은 행을 고치려면 기다려야 한다. B는 바뀌기 전 값을, A는 바뀐 값을 보며, ROLLBACK하면 변경이 취소된다."
+                }
+              ]
+            },
+            {
+              "id": "tcl-savepoint",
+              "title": "SAVEPOINT: 중간 저장 지점",
+              "summary": "SAVEPOINT로 트랜잭션 중간에 이름 붙인 저장 지점을 만들고, ROLLBACK TO SAVEPOINT 이름 으로 그 지점까지만 되돌린다.",
+              "desc": "ROLLBACK은 마지막 COMMIT 이후를 통째로 취소한다. 긴 작업 중 마지막 몇 단계만 되돌리고 싶을 때 SAVEPOINT를 쓴다.\nSAVEPOINT sp1; → 지금 상태에 sp1이라는 이름을 붙인다\nROLLBACK TO SAVEPOINT sp1; → sp1 이후의 변경만 취소한다\n규칙\n· ROLLBACK TO를 해도 트랜잭션은 끝나지 않는다. sp1 이전의 변경은 아직 확정 전이라 마지막에 COMMIT이나 ROLLBACK이 필요하다.\n· sp1으로 되돌리면 sp1 뒤에 만든 저장 지점들은 사라진다. 그 이름으로는 다시 돌아갈 수 없다.\n· 그냥 ROLLBACK을 하면 저장 지점과 상관없이 트랜잭션 전체가 취소된다.\n· 같은 이름으로 저장 지점을 다시 만들면 가장 나중에 만든 것이 기준이 된다.\n예시 SQL은 10번 부서 급여를 100씩 올린 뒤 sp1을 만들고, 10번 부서 사원을 실수로 지운 다음(0명), sp1으로 되돌려 급여 인상만 확정한다.",
+              "analogy": "게임의 중간 저장과 같다. 보스전 직전에 저장해 두면(SAVEPOINT), 지더라도 처음부터가 아니라 저장한 곳부터 다시 할 수 있다. '처음부터 다시 하기'를 고르면(ROLLBACK) 중간 저장도 소용없다.",
+              "sql": "BEGIN;\n\nUPDATE 사원 SET 급여 = 급여 + 100 WHERE 부서번호 = 10;\nSAVEPOINT sp1;\n\nDELETE FROM 사원 WHERE 부서번호 = 10;\nSELECT COUNT(*) AS 실수로지운뒤 FROM 사원 WHERE 부서번호 = 10;\n\nROLLBACK TO SAVEPOINT sp1;\nCOMMIT;\n\nSELECT 이름, 급여 FROM 사원 WHERE 부서번호 = 10 ORDER BY 사원번호;",
+              "pitfalls": [
+                "ROLLBACK TO SAVEPOINT는 트랜잭션을 끝내지 않는다. 마지막에 COMMIT을 해야 그 앞의 변경이 확정된다.",
+                "저장 지점 a 다음에 b를 만들고 a로 되돌리면 b는 사라진다. 그 뒤 ROLLBACK TO SAVEPOINT b 는 오류다.",
+                "COMMIT하면 모든 저장 지점이 사라진다. COMMIT 이전에 만든 저장 지점으로는 돌아갈 수 없다."
+              ],
+              "oracle": [
+                "RELEASE: 오라클과 SQLite 모두 SAVEPOINT 이름; ROLLBACK TO SAVEPOINT 이름; 을 쓴다. SQLite에는 저장 지점을 없애는 RELEASE 이름; 이 더 있는데, 오라클에는 이 명령이 없다.",
+                "시작 명령: 연습창(SQLite)에서는 BEGIN으로 트랜잭션을 연 다음 저장 지점을 만들어야 오라클과 같은 흐름이 된다."
+              ],
+              "exam": "SAVEPOINT와 ROLLBACK TO가 섞인 순서를 주고 최종 결과를 묻는 문제가 단골이다. 이 단원 마지막 카드에서 따라가며 풀어 본다.",
+              "quiz": [
+                {
+                  "q": "ROLLBACK TO SAVEPOINT sp1; 을 실행한 직후의 상태로 옳은 것은?",
+                  "choices": ["트랜잭션 전체가 취소된다", "sp1 이후의 변경만 취소되고 트랜잭션은 계속된다", "sp1 이전의 변경이 자동으로 COMMIT된다", "sp1 이후에 만든 저장 지점은 그대로 남는다"],
+                  "answer": 2,
+                  "explain": "ROLLBACK TO는 그 저장 지점 이후의 변경만 취소하고, 트랜잭션은 계속된다. sp1 이전의 변경은 아직 확정 전이고, sp1 이후의 저장 지점은 사라진다."
+                },
+                {
+                  "q": "트랜잭션 안에서 실행했을 때 오류가 나는 순서는?",
+                  "choices": ["SAVEPOINT a → SAVEPOINT b → ROLLBACK TO SAVEPOINT b → ROLLBACK TO SAVEPOINT a", "SAVEPOINT a → SAVEPOINT b → ROLLBACK TO SAVEPOINT a → ROLLBACK TO SAVEPOINT b", "SAVEPOINT a → ROLLBACK TO SAVEPOINT a → ROLLBACK TO SAVEPOINT a", "SAVEPOINT a → SAVEPOINT a → ROLLBACK TO SAVEPOINT a"],
+                  "answer": 2,
+                  "explain": "a로 되돌리면 a보다 나중에 만든 b는 사라진다. 그 뒤 b로 돌아가려 하면 오류다. b로 먼저 되돌린 뒤 a로 가는 것(1번), 같은 저장 지점으로 여러 번 되돌리는 것(3번)은 괜찮다."
+                }
+              ]
+            },
+            {
+              "id": "tcl-ddl-commit",
+              "title": "DDL과 자동 COMMIT",
+              "summary": "오라클에서 CREATE·ALTER·DROP·TRUNCATE 같은 DDL을 실행하면, 그 전까지 확정하지 않은 변경까지 자동으로 COMMIT된다.",
+              "desc": "오라클은 DDL 문장을 실행할 때 저절로 COMMIT을 한다. 그래서 DDL 앞에 있던 DML 변경도 함께 확정되고, 그 뒤에 ROLLBACK을 해도 되돌아오지 않는다.\n① UPDATE 사원 SET 급여 = 0 WHERE 사원번호 = 1001;\n② CREATE TABLE 임시 (번호 NUMBER); ← 여기서 ①까지 자동 COMMIT\n③ ROLLBACK; ← 되돌릴 것이 없음\n결과: 김대표의 급여는 0이고, 임시 테이블도 남아 있다.\nDCL(GRANT, REVOKE)도 같은 방식으로 자동 COMMIT된다. DML 단원에서 TRUNCATE를 ROLLBACK할 수 없다고 한 것도 TRUNCATE가 DDL이기 때문이다.\n자동으로 확정·취소되는 경우는 더 있다. SQL*Plus 같은 도구를 정상적으로 종료하면 COMMIT되고, 프로그램이 비정상적으로 끝나거나 접속이 끊기면 확정 전 변경은 ROLLBACK된다.\nSQLite는 다르게 동작한다. DDL도 트랜잭션 안에 넣을 수 있어서 ROLLBACK하면 함께 취소된다. 예시 SQL은 같은 순서를 SQLite에서 실행해, 급여가 9000으로 돌아오고 임시 테이블도 없는(0) 결과를 보여 준다. 아래 표의 오라클 결과와 비교해 보자.",
+              "analogy": "식당에서 테이블 배치를 바꾸는(DDL) 순간, 그때까지 받아 둔 주문(DML)을 모두 주방에 넘겨 확정하는 규칙과 같다. 배치를 바꾼 뒤에 앞의 주문을 취소해 달라고 해도 이미 늦었다.",
+              "figures": [
+                {
+                  "title": "같은 순서(UPDATE → CREATE TABLE → ROLLBACK)를 실행한 결과",
+                  "columns": ["항목", "오라클", "SQLite(연습창)"],
+                  "rows": [
+                    ["김대표 급여", "0 (CREATE에서 확정됨)", "9000 (모두 취소됨)"],
+                    ["임시 테이블", "남아 있음", "없음"]
+                  ]
+                }
+              ],
+              "sql": "BEGIN;\n\nUPDATE 사원 SET 급여 = 0 WHERE 사원번호 = 1001;\nCREATE TABLE 임시 (번호 INTEGER);\n\nROLLBACK;\n\nSELECT 급여 FROM 사원 WHERE 사원번호 = 1001;\nSELECT COUNT(*) AS 임시테이블 FROM sqlite_master WHERE name = '임시';",
+              "pitfalls": [
+                "DDL 하나 때문에 그 앞의 DML까지 확정된다. 'DDL 뒤의 ROLLBACK은 DDL 앞의 DML을 되돌리지 못한다'로 기억하자.",
+                "GRANT, REVOKE 같은 DCL도 DDL처럼 실행하면 자동으로 COMMIT된다.",
+                "TRUNCATE는 DDL이라 ROLLBACK할 수 없지만, DELETE는 DML이라 COMMIT 전이면 ROLLBACK할 수 있다."
+              ],
+              "oracle": [
+                "DDL과 트랜잭션: 오라클은 DDL을 실행하면 자동으로 COMMIT한다. SQLite는 DDL도 트랜잭션 안에서 ROLLBACK할 수 있어서, 같은 순서를 실행해도 결과가 반대로 나온다. 시험 문제는 오라클 기준으로 푼다."
+              ],
+              "exam": "DML과 DDL, ROLLBACK이 섞인 순서를 주고 최종 데이터를 묻는 문제가 자주 나온다. DDL을 만나면 그 앞까지 COMMIT된다고 보고 풀면 된다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 ① DELETE FROM 사원 WHERE 부서번호 = 10; ② CREATE TABLE 백업 (번호 NUMBER); ③ ROLLBACK; 을 차례로 실행했다. 10번 부서 사원은 어떻게 되는가?",
+                  "choices": ["되살아난다", "지워진 채로 남는다", "백업 테이블로 옮겨진다", "③에서 오류가 나서 판단할 수 없다"],
+                  "answer": 2,
+                  "explain": "② CREATE TABLE은 DDL이라 실행할 때 자동으로 COMMIT되고, 이때 ①의 DELETE도 확정된다. ③의 ROLLBACK으로는 되돌릴 것이 없다."
+                },
+                {
+                  "q": "오라클에서 실행했을 때 자동으로 COMMIT이 일어나지 않는 것은?",
+                  "choices": ["CREATE TABLE", "TRUNCATE TABLE", "GRANT", "UPDATE"],
+                  "answer": 4,
+                  "explain": "UPDATE는 DML이라 COMMIT이나 ROLLBACK을 직접 해야 끝난다. CREATE, TRUNCATE(DDL)와 GRANT(DCL)는 실행할 때 자동으로 COMMIT된다."
+                }
+              ]
+            },
+            {
+              "id": "tcl-modes",
+              "title": "자동 커밋과 수동 커밋",
+              "summary": "DBMS마다 기본 방식이 다르다. 오라클은 COMMIT을 직접 해야 하고, SQL Server와 SQLite는 기본적으로 문장마다 자동으로 COMMIT한다.",
+              "desc": "변경을 언제 확정하느냐는 DBMS와 도구의 설정에 따라 다르다.\n· 오라클: DML을 실행하면 트랜잭션이 저절로 시작되고, 사용자가 COMMIT이나 ROLLBACK을 해야 끝난다(수동 커밋). SQL*Plus의 SET AUTOCOMMIT ON처럼 도구에서 자동 커밋으로 바꿀 수는 있다.\n· SQL Server: 기본이 자동 커밋(AUTO COMMIT)이라서 문장 하나가 성공하면 바로 COMMIT된다. BEGIN TRANSACTION으로 명시적 트랜잭션을 시작하면 COMMIT·ROLLBACK을 직접 해야 하고, SET IMPLICIT_TRANSACTIONS ON으로 오라클처럼 동작하는 암시적 트랜잭션 방식으로 바꿀 수도 있다.\n· SQLite(연습창): SQL Server처럼 기본이 자동 커밋이다. BEGIN(또는 BEGIN TRANSACTION)으로 시작해야 여러 문장을 묶고 ROLLBACK할 수 있다.\n예시 SQL은 SQLite에서 BEGIN TRANSACTION으로 명시적 트랜잭션을 열고, UPDATE한 뒤 ROLLBACK해 원래 값(9000)으로 돌아오는 것을 보여 준다. BEGIN 없이 UPDATE한 뒤 ROLLBACK만 실행하면, UPDATE가 이미 확정되었기 때문에 SQLite는 '진행 중인 트랜잭션이 없다'는 오류를 낸다.",
+              "analogy": "자동 저장이 켜진 문서 편집기(SQL Server, SQLite)와 꺼진 편집기(오라클)의 차이다. 자동 저장이 켜져 있으면 고칠 때마다 저장되어 '저장하지 않고 닫기'가 소용없다. 묶어서 취소하고 싶으면 '지금부터는 임시 작업'(BEGIN TRANSACTION)이라고 먼저 알려야 한다.",
+              "figures": [
+                {
+                  "title": "기본 트랜잭션 방식 비교",
+                  "columns": ["DBMS", "기본 방식", "여러 문장을 묶으려면"],
+                  "rows": [
+                    ["오라클", "수동 커밋: 첫 DML에서 저절로 시작, COMMIT·ROLLBACK으로 끝냄", "그대로 실행한 뒤 COMMIT"],
+                    ["SQL Server", "자동 커밋: 문장마다 바로 COMMIT", "BEGIN TRANSACTION ... COMMIT / ROLLBACK"],
+                    ["SQLite", "자동 커밋: 문장마다 바로 COMMIT", "BEGIN ... COMMIT / ROLLBACK"]
+                  ]
+                }
+              ],
+              "sql": "BEGIN TRANSACTION;\n\nUPDATE 사원 SET 급여 = 1 WHERE 사원번호 = 1001;\n\nROLLBACK;\n\nSELECT 이름, 급여 FROM 사원 WHERE 사원번호 = 1001;",
+              "pitfalls": [
+                "SQL Server에서 BEGIN TRANSACTION 없이 실행한 UPDATE는 바로 확정되어 ROLLBACK으로 되돌릴 수 없다.",
+                "오라클에서 COMMIT을 잊으면 변경이 다른 사용자에게 보이지 않고, 바꾼 행의 잠금도 계속 걸려 있다.",
+                "연습창에서 BEGIN 없이 실행한 변경은 이미 확정되었으므로 '테이블 초기화' 버튼으로 되돌린다."
+              ],
+              "oracle": [
+                "기본 방식: 오라클은 수동 커밋(COMMIT을 직접 해야 확정)이고, SQLite는 자동 커밋(BEGIN 없이 실행한 문장은 바로 확정)이다. 연습창에서 ROLLBACK을 연습하려면 반드시 BEGIN부터 쓴다."
+              ],
+              "exam": "오라클과 SQL Server의 기본 트랜잭션 방식을 비교하는 문제, SQL Server의 세 가지 방식(자동 커밋, 암시적 트랜잭션, 명시적 트랜잭션)을 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "SQL Server의 기본 설정에서 BEGIN TRANSACTION 없이 UPDATE를 실행한 뒤 ROLLBACK을 시도하면 UPDATE는 어떻게 되는가?",
+                  "choices": ["UPDATE가 취소된다", "UPDATE가 실행되지 않은 채 대기하고 있다", "서버가 자동으로 BEGIN TRANSACTION을 붙여 취소해 준다", "UPDATE는 이미 자동으로 COMMIT되어 되돌아오지 않는다"],
+                  "answer": 4,
+                  "explain": "SQL Server의 기본은 자동 커밋이라 UPDATE가 성공하는 순간 확정된다. 그 뒤의 ROLLBACK은 되돌릴 트랜잭션이 없다."
+                },
+                {
+                  "q": "오라클의 트랜잭션에 대한 설명으로 옳은 것은?",
+                  "choices": ["DML 문장마다 자동으로 COMMIT된다", "첫 DML을 실행하면 트랜잭션이 시작되고 COMMIT이나 ROLLBACK으로 끝난다", "트랜잭션을 시작하려면 반드시 BEGIN TRANSACTION을 써야 한다", "SELECT를 실행하면 앞의 변경이 자동으로 COMMIT된다"],
+                  "answer": 2,
+                  "explain": "오라클은 시작 명령 없이 첫 DML에서 트랜잭션이 시작되고, COMMIT이나 ROLLBACK을 해야 끝난다(수동 커밋). SELECT는 변경을 확정하지 않는다."
+                }
+              ]
+            },
+            {
+              "id": "tcl-trace",
+              "title": "TCL 따라가기: 무엇이 남을까",
+              "summary": "INSERT·SAVEPOINT·ROLLBACK·COMMIT이 섞인 순서는 '마지막 COMMIT 위치', '되돌아갈 저장 지점', '사라지는 저장 지점'을 차례로 따지면 풀린다.",
+              "desc": "예시 SQL의 순서를 한 줄씩 따라가 보자(메모 테이블은 처음에 비어 있다).\n① BEGIN: 트랜잭션 시작(오라클에서는 ②의 첫 INSERT에서 저절로 시작)\n② INSERT 1 → [1]\n③ SAVEPOINT a\n④ INSERT 2 → [1, 2]\n⑤ SAVEPOINT b\n⑥ INSERT 3 → [1, 2, 3]\n⑦ ROLLBACK TO SAVEPOINT a → a 이후의 2, 3이 취소되어 [1]. b도 사라진다.\n⑧ INSERT 4 → [1, 4]\n⑨ COMMIT → [1, 4] 확정\n결과는 1, 4 두 행이다.\n풀이 순서\n1. 마지막 COMMIT(또는 DDL)이 어디인지 찾는다. 그 앞은 무조건 확정이다.\n2. ROLLBACK TO를 만나면 그 저장 지점 이후의 변경을 지우고, 그 뒤에 만든 저장 지점도 지운다.\n3. 그냥 ROLLBACK을 만나면 마지막 COMMIT 이후를 모두 지운다.\n4. 끝까지 COMMIT이 없으면 정상 종료(도구에 따라 COMMIT)인지 비정상 종료(ROLLBACK)인지 문제에서 확인한다.",
+              "analogy": "공책에 연필로 적다가 중간중간 책갈피(SAVEPOINT)를 끼우고, 마지막에 볼펜으로 덧쓰는(COMMIT) 것과 같다. 어떤 책갈피까지 지우개로 지우면 그 뒤에 끼운 책갈피도 빠지고, 볼펜으로 덧쓴 부분은 지울 수 없다.",
+              "sql": "CREATE TABLE 메모 (번호 INTEGER);\n\nBEGIN;\nINSERT INTO 메모 VALUES (1);\nSAVEPOINT a;\nINSERT INTO 메모 VALUES (2);\nSAVEPOINT b;\nINSERT INTO 메모 VALUES (3);\nROLLBACK TO SAVEPOINT a;\nINSERT INTO 메모 VALUES (4);\nCOMMIT;\n\nSELECT * FROM 메모;",
+              "pitfalls": [
+                "저장 지점으로 되돌려도 그 저장 지점 '이전'의 변경(INSERT 1)은 남는다.",
+                "ROLLBACK TO 뒤에 새로 한 변경(INSERT 4)은 이후 COMMIT으로 확정된다.",
+                "연습창에서 이 예시를 두 번 실행하면 CREATE TABLE에서 '이미 있는 테이블' 오류가 난다. '테이블 초기화'를 누른 뒤 다시 실행하자."
+              ],
+              "oracle": [
+                "시작과 DDL: 오라클에서는 ① BEGIN이 필요 없다(첫 INSERT에서 트랜잭션이 시작된다). 또 오라클의 CREATE TABLE은 DDL이라 그 자리에서 자동 COMMIT된다. 나머지 흐름과 결과(1, 4)는 오라클과 SQLite가 같다."
+              ],
+              "exam": "이 카드처럼 6~10단계의 순서를 주고 마지막 SELECT의 결과(행 수, 합계 등)를 묻는 문제가 자주 나온다.",
+              "quiz": [
+                {
+                  "q": "빈 테이블에서 오라클로 INSERT 10 → SAVEPOINT s1 → INSERT 20 → SAVEPOINT s2 → INSERT 30 → ROLLBACK TO SAVEPOINT s2 → COMMIT 을 실행했다. 테이블 값의 합계는?",
+                  "choices": ["10", "60", "0", "30"],
+                  "answer": 4,
+                  "explain": "s2로 되돌리면 s2 이후의 30만 취소된다. 10과 20이 COMMIT되어 합계는 30이다."
+                },
+                {
+                  "q": "빈 테이블에서 오라클로 INSERT 1 → COMMIT → INSERT 2 → SAVEPOINT s → INSERT 3 → ROLLBACK → INSERT 4 → COMMIT 을 실행했다. 남은 값은?",
+                  "choices": ["1, 4", "1, 2, 4", "1, 2, 3, 4", "4"],
+                  "answer": 1,
+                  "explain": "그냥 ROLLBACK은 저장 지점과 상관없이 마지막 COMMIT 이후의 변경(2, 3)을 모두 취소한다. 그 뒤의 4가 COMMIT되어 1, 4가 남는다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "관리 구문", "name": "DDL", "cards": [] },
         { "group": "관리 구문", "name": "DCL", "cards": [] }
       ]
