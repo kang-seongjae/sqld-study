@@ -1885,7 +1885,252 @@
             }
           ]
         },
-        { "group": "SQL 활용", "name": "그룹 함수", "cards": [] },
+        {
+          "group": "SQL 활용",
+          "name": "그룹 함수",
+          "cards": [
+            {
+              "id": "grp-why",
+              "title": "소계와 총계: 그룹 함수가 필요한 이유",
+              "summary": "GROUP BY는 한 가지 기준의 집계만 낸다. 부서별 합계와 전체 합계처럼 여러 수준의 집계(소계·총계)를 한 번에 내는 것이 ROLLUP, CUBE, GROUPING SETS 같은 그룹 함수다.",
+              "desc": "GROUP BY·HAVING 절 단원에서 GROUP BY 부서번호로 부서별 급여 합계를 구했다. 그런데 보고서에는 보통 맨 아래에 '전체 합계' 줄도 필요하다. GROUP BY 하나로는 '부서별'과 '전체'라는 두 수준을 한 결과에 담을 수 없다.\n그룹 함수가 없다면 집합 연산자 단원의 UNION ALL로 두 SELECT를 이어 붙여야 한다. 예시 SQL이 그렇게 만든 결과다. 위 세 줄이 부서별 합계, 마지막 줄(부서번호 NULL)이 전체 합계다.\n오라클은 이런 소계·총계를 한 번에 만드는 그룹 함수를 GROUP BY 절 안에 쓸 수 있게 해 준다.\n· ROLLUP: 오른쪽 기준부터 하나씩 빼 가며 소계를 만든다 (다음 카드)\n· CUBE: 기준들의 모든 조합으로 소계를 만든다\n· GROUPING SETS: 원하는 묶음만 골라 집계한다\n· GROUPING 함수: 결과의 어느 줄이 소계·총계인지 알려 준다\n소계·총계 줄에서는 '합쳐 버린 기준' 열이 NULL로 표시된다. 예시의 마지막 줄 부서번호가 NULL인 이유다.",
+              "analogy": "가계부 정리와 같다. 항목별(식비, 교통비) 합계를 낸 뒤 맨 아래에 '이번 달 총지출' 줄을 하나 더 적는다. 그룹 함수는 이 '항목별 합계 + 총합계'를 한 번에 써 주는 기능이다.",
+              "sql": "SELECT 부서번호, SUM(급여) AS 급여합계\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호\nUNION ALL\nSELECT NULL, SUM(급여)\nFROM 사원\nWHERE 부서번호 IS NOT NULL;",
+              "pitfalls": [
+                "SQLD에서 '그룹 함수'는 SUM, COUNT 같은 집계 함수가 아니라, 소계·총계를 만드는 ROLLUP, CUBE, GROUPING SETS를 가리킨다. 이름이 비슷해 헷갈리기 쉽다.",
+                "그룹 함수가 만든 소계·총계 줄에서는 합쳐진 기준 열이 NULL이다. 원래 데이터에 NULL이 있으면(오인턴의 부서번호) 두 NULL이 섞여 구별하기 어렵다. 이 문제는 GROUPING 함수 카드에서 푼다.",
+                "UNION ALL로 직접 만들면 같은 테이블을 여러 번 읽는다. 그룹 함수는 한 번 읽어서 여러 수준을 계산하므로 더 짧고 효율적이다."
+              ],
+              "oracle": [
+                "그룹 함수 지원: 오라클은 GROUP BY ROLLUP(...), CUBE(...), GROUPING SETS(...)와 GROUPING 함수를 지원한다. SQLite는 하나도 지원하지 않아서, 이 단원의 예시 SQL은 모두 UNION ALL로 같은 결과를 흉내 낸 것이다. 오라클 문법은 설명과 표로 익히자."
+              ],
+              "exam": "그룹 함수의 종류(ROLLUP, CUBE, GROUPING SETS)와 각각이 만드는 결과를 구분하는 문제가 단골이다. 윈도우 함수(RANK 등)나 집계 함수(SUM 등)와 섞어 보기로 내기도 한다.",
+              "quiz": [
+                {
+                  "q": "소계·총계를 만드는 SQLD의 '그룹 함수'에 해당하지 않는 것은?",
+                  "choices": ["ROLLUP", "CUBE", "GROUPING SETS", "RANK"],
+                  "answer": 4,
+                  "explain": "RANK는 순위를 매기는 윈도우 함수다. ROLLUP, CUBE, GROUPING SETS가 소계·총계를 만드는 그룹 함수다."
+                },
+                {
+                  "q": "그룹 함수를 쓸 수 없는 DBMS에서 부서별 합계와 전체 합계를 한 결과로 보려면?",
+                  "choices": ["GROUP BY에 부서번호를 두 번 쓴다", "GROUP BY 부서번호 결과와 전체 합계를 구하는 SELECT를 UNION ALL로 합친다", "HAVING 절에 SUM(급여)를 쓴다", "ORDER BY 절에 SUM(급여)를 쓴다"],
+                  "answer": 2,
+                  "explain": "서로 다른 수준의 집계를 각각 SELECT로 구한 뒤 UNION ALL로 위아래로 이어 붙이면 된다. 이 단원 예시 SQL이 모두 이 방법이다."
+                }
+              ]
+            },
+            {
+              "id": "grp-rollup",
+              "title": "ROLLUP: 오른쪽부터 하나씩 줄이며 소계",
+              "summary": "ROLLUP(A, B)는 (A, B)별 집계, A별 소계, 전체 합계를 차례로 만든다. 인자가 n개면 n + 1개 수준의 집계가 나온다.",
+              "desc": "오라클에서는 GROUP BY 대신 GROUP BY ROLLUP(부서번호, 직급)이라고 쓴다.\nSELECT 부서번호, 직급, COUNT(*) AS 인원, SUM(급여) AS 급여합계\nFROM 사원\nWHERE 직급 IN ('부장', '과장')\nGROUP BY ROLLUP(부서번호, 직급);\nROLLUP은 괄호 안의 기준을 오른쪽부터 하나씩 빼면서 집계한다.\n① (부서번호, 직급)별: 일반 GROUP BY와 같은 줄\n② (부서번호)별: 직급을 합친 부서 소계. 직급 열이 NULL\n③ (): 모두 합친 전체 합계. 부서번호와 직급이 모두 NULL\n인자가 2개면 3개 수준, 3개면 4개 수준이다. 순서가 계층을 뜻해서, 앞에 쓴 열이 큰 단위, 뒤에 쓴 열이 작은 단위가 된다.\n예시 SQL은 이 오라클 SQL과 같은 결과를 SQLite에서 UNION ALL로 만든 것이다. 20번·30번 부서의 부장·과장 네 줄, 부서 소계 두 줄, 전체 합계 한 줄로 모두 7행이다.",
+              "analogy": "회사 → 부서 → 팀 순서로 쌓인 보고서와 같다. 팀별 실적을 적고, 부서가 끝날 때마다 부서 합계를, 맨 끝에 회사 전체 합계를 적는다. 작은 단위부터 차례로 '말아 올린다(roll up)'.",
+              "sql": "SELECT 부서번호, 직급, COUNT(*) AS 인원, SUM(급여) AS 급여합계\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 부서번호, 직급\nUNION ALL\nSELECT 부서번호, NULL, COUNT(*), SUM(급여)\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 부서번호\nUNION ALL\nSELECT NULL, NULL, COUNT(*), SUM(급여)\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nORDER BY 부서번호 NULLS LAST, 직급 NULLS LAST;",
+              "pitfalls": [
+                "ROLLUP은 인자 순서가 중요하다. ROLLUP(부서번호, 직급)은 부서 소계를 만들고, ROLLUP(직급, 부서번호)는 직급 소계를 만든다. 결과가 다르다.",
+                "ROLLUP(부서번호, 직급)에는 '직급별 소계'(부서와 상관없이 과장 전체)가 없다. 그것까지 필요하면 CUBE를 쓴다(다음 카드).",
+                "결과 순서는 ROLLUP이 정해 주지 않는다. 소계가 각 그룹 아래에 오게 보려면 ORDER BY를 함께 쓴다."
+              ],
+              "oracle": [
+                "ROLLUP: 오라클은 GROUP BY ROLLUP(부서번호, 직급)을 지원한다. SQLite에는 없어서 '알 수 없는 함수' 오류가 나므로 예시처럼 UNION ALL로 흉내 낸다."
+              ],
+              "exam": "ROLLUP이 만드는 집계 수준과 결과 행 수를 묻는 문제가 자주 나온다. 결과 표를 보여 주고 어떤 GROUP BY를 썼는지 고르게 하는 문제도 많다.",
+              "quiz": [
+                {
+                  "q": "GROUP BY ROLLUP(부서번호, 직급) 이 만드는 집계 수준으로 옳은 것은?",
+                  "choices": ["(부서번호, 직급), (부서번호), ()", "(부서번호, 직급), (직급), ()", "(부서번호, 직급), (부서번호), (직급), ()", "(부서번호), (직급)"],
+                  "answer": 1,
+                  "explain": "ROLLUP은 오른쪽 기준부터 하나씩 빼므로 (부서번호, 직급) → (부서번호) → () 세 수준이다. 직급만의 소계는 만들지 않는다."
+                },
+                {
+                  "q": "부서가 3개이고 부서마다 직급이 2개씩 있어 (부서, 직급) 조합이 6개다. GROUP BY ROLLUP(부서, 직급) 의 결과 행 수는?",
+                  "choices": ["7", "9", "10", "12"],
+                  "answer": 3,
+                  "explain": "(부서, 직급)별 6행 + 부서별 소계 3행 + 전체 합계 1행 = 10행이다."
+                }
+              ]
+            },
+            {
+              "id": "grp-cube",
+              "title": "CUBE: 모든 조합의 소계",
+              "summary": "CUBE(A, B)는 (A, B), A, B, 전체의 모든 조합으로 집계한다. 인자가 n개면 2의 n제곱 개 수준이 나온다.",
+              "desc": "ROLLUP(부서번호, 직급)은 부서 소계만 만들고 직급 소계는 만들지 않았다. 부서별로도, 직급별로도 소계를 보고 싶다면 CUBE를 쓴다.\nGROUP BY CUBE(부서번호, 직급)\nCUBE는 괄호 안 기준들로 만들 수 있는 모든 조합을 집계한다.\n① (부서번호, 직급)별\n② (부서번호)별 소계: 직급 열이 NULL\n③ (직급)별 소계: 부서번호 열이 NULL\n④ (): 전체 합계\n인자가 2개면 2² = 4개, 3개면 2³ = 8개 수준이다. 모든 조합을 만들기 때문에 인자 순서를 바꿔도 같은 묶음들이 나온다.\n아래 표는 오라클에서 CUBE를 쓴 결과다(행 순서는 ORDER BY로 맞춘 것). 예시 SQL은 같은 결과를 SQLite에서 UNION ALL로 만든 것으로 9행이 나온다. 카드의 결과 표는 8행까지만 보이니 마지막 줄은 아래 표나 연습창에서 확인하자.",
+              "analogy": "엑셀 피벗 표에서 행 합계와 열 합계, 맨 오른쪽 아래의 총합계를 모두 켠 것과 같다. 부서 방향으로도, 직급 방향으로도 합계가 붙는다.",
+              "figures": [
+                {
+                  "title": "오라클: GROUP BY CUBE(부서번호, 직급) 결과 (부장·과장만)",
+                  "columns": ["부서번호", "직급", "인원", "급여합계", "집계 수준"],
+                  "rows": [
+                    [20, "과장", 1, 5000, "(부서번호, 직급)"],
+                    [20, "부장", 1, 6500, "(부서번호, 직급)"],
+                    [20, null, 2, 11500, "(부서번호) 소계"],
+                    [30, "과장", 1, 4800, "(부서번호, 직급)"],
+                    [30, "부장", 1, 6200, "(부서번호, 직급)"],
+                    [30, null, 2, 11000, "(부서번호) 소계"],
+                    [null, "과장", 2, 9800, "(직급) 소계"],
+                    [null, "부장", 2, 12700, "(직급) 소계"],
+                    [null, null, 4, 22500, "() 전체 합계"]
+                  ],
+                  "note": "ROLLUP(부서번호, 직급)이었다면 (직급) 소계 두 줄이 없어 7행이다."
+                }
+              ],
+              "sql": "SELECT 부서번호, 직급, COUNT(*) AS 인원, SUM(급여) AS 급여합계\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 부서번호, 직급\nUNION ALL\nSELECT 부서번호, NULL, COUNT(*), SUM(급여)\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 부서번호\nUNION ALL\nSELECT NULL, 직급, COUNT(*), SUM(급여)\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 직급\nUNION ALL\nSELECT NULL, NULL, COUNT(*), SUM(급여)\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nORDER BY 부서번호 NULLS LAST, 직급 NULLS LAST;",
+              "pitfalls": [
+                "CUBE는 인자가 늘면 집계 수준이 2배씩 늘어난다. 인자 3개면 8개 수준이라 결과도 계산량도 크게 불어난다.",
+                "CUBE(부서번호, 직급)와 CUBE(직급, 부서번호)는 같은 묶음들을 만든다. 순서에 따라 결과가 달라지는 ROLLUP과 다른 점이다.",
+                "인자가 1개면 CUBE(A)와 ROLLUP(A)는 같다. 둘 다 (A)와 () 두 수준이다."
+              ],
+              "oracle": [
+                "CUBE: 오라클은 GROUP BY CUBE(...)를 지원한다. SQLite에는 없어서 예시처럼 네 수준을 UNION ALL로 이어 붙여 흉내 낸다."
+              ],
+              "exam": "CUBE가 만드는 집계 수준의 개수(2의 n제곱), ROLLUP과 CUBE의 결과 차이를 묻는 문제가 나온다. 결과 표에서 직급 소계 줄이 있는지 보고 ROLLUP인지 CUBE인지 고르게 하기도 한다.",
+              "quiz": [
+                {
+                  "q": "GROUP BY CUBE(A, B, C)가 만드는 집계 수준(묶음)의 개수는?",
+                  "choices": ["3", "4", "6", "8"],
+                  "answer": 4,
+                  "explain": "CUBE는 모든 조합을 만들므로 2³ = 8개 수준이다. ROLLUP(A, B, C)라면 3 + 1 = 4개다."
+                },
+                {
+                  "q": "ROLLUP과 CUBE에 대한 설명으로 옳은 것은?",
+                  "choices": ["ROLLUP은 인자 순서를 바꿔도 결과가 같다", "CUBE는 인자 순서를 바꿔도 같은 묶음들을 만든다", "CUBE(A, B)는 A별 소계를 만들지 않는다", "ROLLUP(A, B)는 B별 소계도 만든다"],
+                  "answer": 2,
+                  "explain": "CUBE는 모든 조합을 만들기 때문에 순서와 상관없다. ROLLUP은 순서에 따라 소계 기준이 달라지고, ROLLUP(A, B)에는 B만의 소계가 없다."
+                }
+              ]
+            },
+            {
+              "id": "grp-grouping-sets",
+              "title": "GROUPING SETS: 원하는 묶음만 골라서",
+              "summary": "GROUPING SETS는 괄호 안에 적은 묶음별 집계만 만든다. 여러 GROUP BY 결과를 UNION ALL로 합친 것과 같다.",
+              "desc": "ROLLUP과 CUBE는 정해진 규칙대로 묶음을 만든다. 필요한 묶음만 직접 골라 적고 싶을 때 GROUPING SETS를 쓴다.\nGROUP BY GROUPING SETS(부서번호, 직급)\n이 문장은 '부서번호별 집계'와 '직급별 집계' 두 가지만 만든다. (부서번호, 직급) 조합별 줄도, 전체 합계 줄도 없다. 부서별 줄에서는 직급이 NULL, 직급별 줄에서는 부서번호가 NULL이다.\n괄호를 겹쳐 쓰면 여러 열로 된 묶음도 넣을 수 있고, 빈 괄호 ()는 전체 합계를 뜻한다.\nGROUPING SETS((부서번호, 직급), (부서번호), ()) = ROLLUP(부서번호, 직급)\nGROUPING SETS((부서번호, 직급), (부서번호), (직급), ()) = CUBE(부서번호, 직급)\n그래서 GROUPING SETS를 알면 ROLLUP과 CUBE를 'GROUPING SETS를 줄여 쓴 것'으로 이해할 수 있다.\n예시 SQL은 GROUPING SETS(부서번호, 직급)과 같은 결과를 SQLite에서 UNION ALL로 만든 것이다.",
+              "analogy": "뷔페에서 원하는 음식만 골라 담는 것과 같다. ROLLUP과 CUBE는 정해진 코스 요리이고, GROUPING SETS는 '부서별 하나, 직급별 하나'처럼 접시에 담을 묶음을 내가 고른다.",
+              "sql": "SELECT 부서번호, NULL AS 직급, COUNT(*) AS 인원, SUM(급여) AS 급여합계\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 부서번호\nUNION ALL\nSELECT NULL, 직급, COUNT(*), SUM(급여)\nFROM 사원 WHERE 직급 IN ('부장', '과장')\nGROUP BY 직급;",
+              "pitfalls": [
+                "GROUPING SETS(부서번호, 직급)은 (부서번호, 직급) 조합별 집계가 아니다. 부서별 집계와 직급별 집계를 따로 만들어 이어 붙인 것이다. 조합별 집계를 원하면 GROUPING SETS((부서번호, 직급))처럼 괄호를 한 번 더 쓴다.",
+                "GROUPING SETS에는 () 를 적지 않는 한 전체 합계 줄이 없다.",
+                "GROUPING SETS(A, B)와 GROUPING SETS(B, A)는 같은 묶음을 만든다. 결과 행의 순서만 다를 수 있다."
+              ],
+              "oracle": [
+                "GROUPING SETS: 오라클은 GROUP BY GROUPING SETS(...)를 지원한다. SQLite에는 없어서 묶음마다 GROUP BY를 따로 하고 UNION ALL로 합친다."
+              ],
+              "exam": "GROUPING SETS의 결과에 어떤 집계 줄이 들어가는지, ROLLUP·CUBE와 같은 결과를 내는 GROUPING SETS 식을 고르는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "GROUP BY GROUPING SETS(부서번호, 직급) 의 결과에 들어 있지 않은 것은?",
+                  "choices": ["부서별 소계 줄", "직급별 소계 줄", "전체 합계 줄", "부서별 줄에서 직급 열이 NULL로 표시된 것"],
+                  "answer": 3,
+                  "explain": "GROUPING SETS는 괄호 안에 적은 묶음만 만든다. 전체 합계는 ()를 따로 적어야 생긴다."
+                },
+                {
+                  "q": "GROUPING SETS((부서번호, 직급), (부서번호), ()) 과 같은 결과를 내는 것은?",
+                  "choices": ["CUBE(부서번호, 직급)", "ROLLUP(직급, 부서번호)", "ROLLUP(부서번호, 직급)", "GROUPING SETS(부서번호, 직급)"],
+                  "answer": 3,
+                  "explain": "ROLLUP(부서번호, 직급)은 (부서번호, 직급), (부서번호), () 세 묶음을 만든다. CUBE라면 (직급) 묶음이 더 있고, ROLLUP(직급, 부서번호)는 (직급) 소계를 만든다."
+                }
+              ]
+            },
+            {
+              "id": "grp-grouping",
+              "title": "GROUPING 함수: 소계 줄 알아보기",
+              "summary": "GROUPING(열)은 그 줄이 해당 열을 합쳐서 만든 소계·총계 줄이면 1, 아니면 0을 돌려준다. 원래 데이터의 NULL과 소계 줄의 NULL을 구별할 때 쓴다.",
+              "desc": "ROLLUP으로 부서별 합계와 전체 합계를 내 보자.\nSELECT 부서번호, COUNT(*), SUM(급여) FROM 사원 GROUP BY ROLLUP(부서번호);\n결과에 부서번호가 NULL인 줄이 두 개 생긴다. 하나는 부서가 없는 오인턴의 그룹이고, 하나는 ROLLUP이 만든 전체 합계다. 눈으로는 구별할 수 없다.\nGROUPING(부서번호)는 이 둘을 가려 준다.\n· 원래 데이터로 묶인 줄(부서번호가 진짜 NULL인 그룹 포함): 0\n· 부서번호를 합쳐 버려서 생긴 소계·총계 줄: 1\nGROUPING 값을 CASE(함수 단원)와 함께 쓰면 소계 줄에 이름표를 붙일 수 있다.\nCASE WHEN GROUPING(부서번호) = 1 THEN '전체 합계' WHEN 부서번호 IS NULL THEN '부서 미배정' ELSE 부서번호 || '번 부서' END\n아래 표는 오라클 결과이고, 예시 SQL은 같은 이름표 결과를 SQLite에서 UNION ALL로 만든 것이다.",
+              "analogy": "시험지 묶음 맨 아래에 '합계'라고 쓴 종이를 끼워 넣을 때, 그 종이에만 빨간 스티커(1)를 붙여 두는 것과 같다. 이름 칸이 빈 학생 시험지와 합계 종이를 스티커로 구별한다.",
+              "figures": [
+                {
+                  "title": "오라클: GROUP BY ROLLUP(부서번호) 와 GROUPING(부서번호)",
+                  "columns": ["부서번호", "인원", "급여합계", "GROUPING(부서번호)"],
+                  "rows": [
+                    [10, 2, 12100, 0],
+                    [20, 4, 18800, 0],
+                    [30, 4, 18100, 0],
+                    [null, 1, 2400, 0],
+                    [null, 11, 51400, 1]
+                  ],
+                  "note": "부서번호가 NULL인 줄이 둘이다. GROUPING 값이 0이면 원래 NULL인 그룹(오인턴), 1이면 ROLLUP이 만든 전체 합계다. 행 순서는 ORDER BY에 따라 달라질 수 있다."
+                }
+              ],
+              "sql": "SELECT CASE WHEN 부서번호 IS NULL THEN '부서 미배정'\n            ELSE 부서번호 || '번 부서' END AS 구분,\n       COUNT(*) AS 인원,\n       SUM(급여) AS 급여합계\nFROM 사원\nGROUP BY 부서번호\nUNION ALL\nSELECT '전체 합계', COUNT(*), SUM(급여)\nFROM 사원;",
+              "pitfalls": [
+                "NVL(부서번호, 0)이나 IS NULL 검사로는 두 NULL을 구별할 수 없다. 둘 다 똑같은 NULL로 보이기 때문이다. 구별은 GROUPING으로만 된다.",
+                "GROUPING은 ROLLUP·CUBE·GROUPING SETS와 함께 쓰는 함수이고, 인자에는 GROUP BY에 쓴 열을 넣는다.",
+                "열이 여러 개면 열마다 GROUPING을 따로 본다. ROLLUP(부서번호, 직급)의 부서 소계 줄은 GROUPING(부서번호) = 0, GROUPING(직급) = 1이고, 전체 합계 줄은 둘 다 1이다."
+              ],
+              "oracle": [
+                "GROUPING 함수: 오라클은 GROUPING(열)을 지원한다(여러 열을 숫자 하나로 합친 GROUPING_ID도 있다). SQLite에는 없어서, 예시처럼 UNION ALL의 각 부분에 직접 이름표 열을 넣어 구별한다."
+              ],
+              "exam": "GROUPING 함수가 0과 1을 돌려주는 조건, CASE와 GROUPING으로 소계 줄에 이름을 붙인 SQL의 결과를 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "GROUP BY ROLLUP(부서번호) 결과에서 GROUPING(부서번호)가 1인 줄은?",
+                  "choices": ["부서번호가 NULL인 원래 데이터가 모인 줄", "부서번호를 합쳐서 만든 전체 합계 줄", "부서번호가 1인 줄", "모든 줄"],
+                  "answer": 2,
+                  "explain": "GROUPING은 그 열이 집계 과정에서 합쳐져 NULL로 표시된 줄에서 1이다. 원래 데이터의 NULL로 묶인 그룹은 0이다."
+                },
+                {
+                  "q": "ROLLUP 결과에 부서번호가 NULL인 줄이 둘 나왔다. 하나는 부서 미배정 사원들의 그룹, 하나는 전체 합계다. 둘을 구별하는 방법은?",
+                  "choices": ["NVL(부서번호, 0)으로 바꿔 본다", "ORDER BY 부서번호로 정렬해 본다", "GROUPING(부서번호) 값을 본다", "WHERE 부서번호 IS NULL로 걸러 본다"],
+                  "answer": 3,
+                  "explain": "NVL이나 IS NULL은 두 NULL을 똑같이 다룬다. GROUPING은 원래 데이터의 NULL이면 0, 집계로 생긴 NULL이면 1이라 둘을 구별할 수 있다."
+                }
+              ]
+            },
+            {
+              "id": "grp-compare",
+              "title": "ROLLUP·CUBE·GROUPING SETS 한눈에 비교",
+              "summary": "인자가 (A, B)일 때 ROLLUP은 3개, CUBE는 4개 수준을 만들고, GROUPING SETS는 적은 묶음만 만든다. 결과 행 수는 수준별 그룹 수를 더해서 구한다.",
+              "desc": "세 그룹 함수를 GROUPING SETS로 풀어 쓰면 차이가 분명해진다(아래 첫 번째 표).\n결과 행 수 구하기\n각 수준에서 생기는 그룹 수를 모두 더한다. 부서 2개(20, 30)와 직급 2개(과장, 부장)가 모두 짝지어 있는 예제 데이터(부장·과장만)에서는\n· (부서, 직급) 4개 + (부서) 2개 + () 1개 = ROLLUP 7행\n· 여기에 (직급) 2개를 더하면 CUBE 9행\n· (부서) 2개 + (직급) 2개 = GROUPING SETS(부서, 직급) 4행\n일부만 ROLLUP하기\nGROUP BY 부서번호, ROLLUP(직급)처럼 일반 열과 섞어 쓸 수도 있다. 이때 부서번호는 언제나 묶음에 남고, ROLLUP 안의 직급만 빠졌다 들어갔다 한다. 결과는 (부서번호, 직급)과 (부서번호) 두 수준이고, 전체 합계는 없다.\n이 카드는 개념 정리라서 예시 SQL 대신 표로 보여 준다. 실제 결과는 앞의 ROLLUP, CUBE, GROUPING SETS 카드에서 실행해 볼 수 있다.",
+              "analogy": "피자 토핑 고르기와 같다. ROLLUP은 '큰 것부터 하나씩 빼는' 정해진 메뉴, CUBE는 '가능한 모든 조합' 세트, GROUPING SETS는 '이것과 이것만' 주문하는 단품이다.",
+              "figures": [
+                {
+                  "title": "인자가 (A, B)일 때 만들어지는 집계 수준",
+                  "columns": ["그룹 함수", "(A, B)", "(A)", "(B)", "() 전체", "수준 개수"],
+                  "rows": [
+                    ["ROLLUP(A, B)", "O", "O", "X", "O", "3 (n + 1)"],
+                    ["ROLLUP(B, A)", "O", "X", "O", "O", "3"],
+                    ["CUBE(A, B)", "O", "O", "O", "O", "4 (2의 n제곱)"],
+                    ["GROUPING SETS(A, B)", "X", "O", "O", "X", "적은 만큼(2)"],
+                    ["GROUP BY A, ROLLUP(B)", "O", "O", "X", "X", "2"]
+                  ],
+                  "note": "ROLLUP은 인자 순서에 따라 결과가 달라지고, CUBE와 GROUPING SETS는 순서와 상관없이 같은 묶음을 만든다."
+                },
+                {
+                  "title": "GROUPING SETS로 풀어 쓰기",
+                  "columns": ["줄여 쓴 형태", "같은 뜻의 GROUPING SETS"],
+                  "rows": [
+                    ["ROLLUP(A, B)", "GROUPING SETS((A, B), (A), ())"],
+                    ["CUBE(A, B)", "GROUPING SETS((A, B), (A), (B), ())"],
+                    ["ROLLUP(A, B, C)", "GROUPING SETS((A, B, C), (A, B), (A), ())"]
+                  ]
+                }
+              ],
+              "pitfalls": [
+                "ROLLUP(A, B, C)는 4개 수준, CUBE(A, B, C)는 8개 수준이다. n + 1과 2의 n제곱을 헷갈리지 말자.",
+                "결과 행 수는 '수준 개수'가 아니라 각 수준에서 생기는 그룹 수를 더한 값이다. 데이터에 어떤 조합이 실제로 있는지 세어야 한다.",
+                "GROUP BY A, ROLLUP(B)에는 전체 합계가 없다. A가 모든 수준에 늘 들어 있기 때문이다."
+              ],
+              "oracle": [
+                "그룹 함수 전체: ROLLUP, CUBE, GROUPING SETS, GROUPING은 모두 오라클 기능이고 SQLite에는 없다. 연습창에서는 수준마다 GROUP BY를 따로 하고 UNION ALL로 합쳐 같은 결과를 확인한다."
+              ],
+              "exam": "세 그룹 함수의 집계 수준을 비교하는 문제, 주어진 데이터에서 결과 행 수를 계산하는 문제, 같은 결과를 내는 두 식을 짝짓는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "GROUP BY ROLLUP(A, B, C)가 만드는 집계 수준의 개수는?",
+                  "choices": ["3", "4", "6", "8"],
+                  "answer": 2,
+                  "explain": "ROLLUP은 오른쪽부터 하나씩 빼므로 (A, B, C), (A, B), (A), () 4개 수준이다. CUBE(A, B, C)라면 8개다."
+                },
+                {
+                  "q": "결과가 나머지 셋과 다른 것은?",
+                  "choices": ["GROUP BY CUBE(A, B)", "GROUP BY CUBE(B, A)", "GROUP BY GROUPING SETS((A, B), (A), (B), ())", "GROUP BY ROLLUP(A, B)"],
+                  "answer": 4,
+                  "explain": "1~3번은 모두 (A, B), (A), (B), () 네 수준이다. ROLLUP(A, B)에는 (B) 수준이 없어 결과가 다르다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "SQL 활용", "name": "윈도우 함수", "cards": [] },
         { "group": "SQL 활용", "name": "Top N 쿼리", "cards": [] },
         { "group": "SQL 활용", "name": "계층형 질의와 셀프 조인", "cards": [] },

@@ -86,6 +86,7 @@ const DONE_UNITS = [
   '표준 조인',
   '서브쿼리',
   '집합 연산자',
+  '그룹 함수',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -450,6 +451,34 @@ test('집합 연산자 단원: 카드·문제에 적은 값과 SQLite 동작', a
   assert(fails('SELECT 1 UNION (SELECT 2 INTERSECT SELECT 2)'), '괄호 묶기 안 됨');
   assert(fails('SELECT 이름, 직급 FROM 사원 UNION SELECT 이름 FROM 사원'), '열 개수 다름');
   assert(fails('SELECT 이름 FROM 사원 WHERE 부서번호 = 10 ORDER BY 이름 UNION SELECT 이름 FROM 사원'), '중간 ORDER BY');
+  db.close();
+});
+
+test('그룹 함수 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, rows, fails } = await seededDb();
+  const f = "FROM 사원 WHERE 직급 IN ('부장', '과장')";
+  const detail = `SELECT 부서번호, 직급, COUNT(*) AS 인원, SUM(급여) AS 급여합계 ${f} GROUP BY 부서번호, 직급`;
+  const byDept = `SELECT 부서번호, NULL, COUNT(*), SUM(급여) ${f} GROUP BY 부서번호`;
+  const byRank = `SELECT NULL, 직급, COUNT(*), SUM(급여) ${f} GROUP BY 직급`;
+  const total = `SELECT NULL, NULL, COUNT(*), SUM(급여) ${f}`;
+  const order = 'ORDER BY 부서번호 NULLS LAST, 직급 NULLS LAST';
+  eq(rows('SELECT 부서번호, SUM(급여) FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호 UNION ALL SELECT NULL, SUM(급여) FROM 사원 WHERE 부서번호 IS NOT NULL'),
+    [[10, 12100], [20, 18800], [30, 18100], [null, 49000]], '부서별 합계 + 총계');
+  const rollup = rows(`${detail} UNION ALL ${byDept} UNION ALL ${total} ${order}`);
+  eq(rollup.length, 7, 'ROLLUP 흉내 7행');
+  eq(rollup[2], [20, null, 2, 11500]);
+  eq(rollup[6], [null, null, 4, 22500]);
+  const cube = rows(`${detail} UNION ALL ${byDept} UNION ALL ${byRank} UNION ALL ${total} ${order}`);
+  eq(cube, [[20, '과장', 1, 5000], [20, '부장', 1, 6500], [20, null, 2, 11500], [30, '과장', 1, 4800], [30, '부장', 1, 6200],
+    [30, null, 2, 11000], [null, '과장', 2, 9800], [null, '부장', 2, 12700], [null, null, 4, 22500]], 'CUBE 흉내 = 카드의 표');
+  eq(rows(`${byDept} UNION ALL ${byRank}`).length, 4, 'GROUPING SETS(부서, 직급) 흉내');
+  eq(rows("SELECT CASE WHEN 부서번호 IS NULL THEN '부서 미배정' ELSE 부서번호 || '번 부서' END, COUNT(*), SUM(급여) FROM 사원 GROUP BY 부서번호 UNION ALL SELECT '전체 합계', COUNT(*), SUM(급여) FROM 사원"),
+    [['부서 미배정', 1, 2400], ['10번 부서', 2, 12100], ['20번 부서', 4, 18800], ['30번 부서', 4, 18100], ['전체 합계', 11, 51400]], 'GROUPING 표의 값');
+  // 오라클과 다르다고 적은 SQLite 동작: 그룹 함수가 하나도 없다
+  assert(fails('SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY ROLLUP(부서번호)'), 'ROLLUP 없음');
+  assert(fails('SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY CUBE(부서번호)'), 'CUBE 없음');
+  assert(fails('SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY GROUPING SETS(부서번호)'), 'GROUPING SETS 없음');
+  assert(fails('SELECT GROUPING(부서번호) FROM 사원 GROUP BY 부서번호'), 'GROUPING 없음');
   db.close();
 });
 
