@@ -81,6 +81,7 @@ const DONE_UNITS = [
   'SELECT 기본과 WHERE 조건',
   '함수',
   'GROUP BY·HAVING 절',
+  'ORDER BY 절',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -294,6 +295,30 @@ test('GROUP BY·HAVING 단원: 카드·문제에 적은 값과 SQLite 동작', a
   assert(fails('SELECT STDDEV(급여) FROM 사원'), 'STDDEV 없음');
   assert(fails('SELECT 부서번호 FROM 사원 WHERE COUNT(*) > 1 GROUP BY 부서번호'), 'WHERE에 집계 함수');
   assert(fails('SELECT COUNT(DISTINCT *) FROM 사원'), 'COUNT(DISTINCT *)');
+  db.close();
+});
+
+test('ORDER BY 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, rows, fails } = await seededDb();
+  db.exec("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('9'), ('10'), ('100'), ('2')");
+  eq(rows('SELECT v FROM t ORDER BY v').flat(), ['10', '100', '2', '9'], '문자 정렬');
+  db.exec('CREATE TABLE u (부서, 급여); INSERT INTO u VALUES (20, 300), (10, 500), (20, 500), (10, 300)');
+  eq(rows('SELECT 부서, 급여 FROM u ORDER BY 급여 DESC, 부서')[0], [10, 500]);
+  eq(rows('SELECT DISTINCT 직급 FROM 사원 ORDER BY 직급').flat(), ['과장', '대리', '대표', '부장', '사원', '인턴'], '직급 가나다순');
+  const byCase = rows("SELECT 직급 FROM 사원 ORDER BY CASE 직급 WHEN '대표' THEN 1 WHEN '부장' THEN 2 WHEN '과장' THEN 3 WHEN '대리' THEN 4 WHEN '사원' THEN 5 ELSE 9 END, 급여 DESC").flat();
+  eq([byCase[0], byCase[10]], ['대표', '인턴']);
+  eq(rows('SELECT 부서번호, COUNT(*), AVG(급여) AS 평균급여 FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호 HAVING COUNT(*) >= 2 ORDER BY 평균급여 DESC'),
+    [[10, 2, 6050], [20, 4, 4700], [30, 4, 4525]]);
+  eq(rows("SELECT 이름 FROM 사원 WHERE 부서번호 = 30 ORDER BY 직급").flat(), ['정과장', '조대리', '박부장', '장사원']);
+  // 오라클과 다르다고 적은 SQLite 동작
+  const asc = rows('SELECT 커미션 FROM 사원 ORDER BY 커미션').flat();
+  eq([asc[0], asc[10]], [null, 500], 'SQLite ASC는 NULL이 맨 앞');
+  const desc = rows('SELECT 커미션 FROM 사원 ORDER BY 커미션 DESC').flat();
+  eq([desc[0], desc[10]], [500, null], 'SQLite DESC는 NULL이 맨 뒤');
+  eq(rows('SELECT 커미션 FROM 사원 ORDER BY 커미션 NULLS LAST').flat()[10], null, 'NULLS LAST');
+  eq(rows('SELECT DISTINCT 직급 FROM 사원 ORDER BY 급여').length, 6, 'DISTINCT + 목록에 없는 열');
+  eq(rows('SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY 부서번호 ORDER BY 급여').length, 4, 'GROUP BY + 없는 열 정렬');
+  assert(fails('SELECT 이름, 급여 FROM 사원 ORDER BY 3'), '위치 번호 범위 초과');
   db.close();
 });
 
