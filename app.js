@@ -271,7 +271,7 @@ function renderCard(c, subject, unit) {
   const card = h('article', { class: 'card', 'data-card': c.id },
     h('div', { class: 'crumb' }, `${subject.name} › ${unit.name}`),
     h('h3', {}, c.title, oracle.length > 0 && h('span', { class: 'tag-oracle' }, '오라클과 다름')),
-    c.summary && h('p', { class: 'summary' }, c.summary),
+    c.summary && h('p', { class: 'summary' }, h('mark', { class: 'marker' }, c.summary)),
     c.desc && section('sec-desc', '쉽게 풀어 보면', h('p', { class: 'desc' }, c.desc)),
     c.analogy && section('sec-analogy', '비유로 이해하기', h('p', {}, c.analogy)),
     (c.figures?.length > 0 || c.diagram) && section('sec-figure', '표와 그림으로 보기',
@@ -526,10 +526,15 @@ function renderWrong() {
     } }, `오답 ${list.length}문제 다시 풀기`)));
   for (const q of list) {
     const w = state.wrong[q.id];
+    // 문제지에서 오려 붙인 조각처럼: 테이프, 문제와 보기, 펜으로 적은 정답
     view.append(h('div', { class: 'wrong-item' },
+      h('span', { class: 'tape', 'aria-hidden': 'true' }),
       h('div', { class: 'crumb' }, `${q.subject} › ${q.unit} › ${q.cardTitle} · ${w.count}번 틀림`),
       h('p', {}, h('strong', {}, q.q)),
-      h('p', { class: 'hint' }, `정답: ${q.answer}. ${q.choices[q.answer - 1]}`)));
+      h('ol', { class: 'clip-choices' }, q.choices.map((text, i) =>
+        h('li', { class: i + 1 === q.answer ? 'is-answer' : null }, h('span', { class: 'clip-no' }, String(i + 1)), text))),
+      h('p', { class: 'hint' }, `정답: ${q.answer}. ${q.choices[q.answer - 1]}`),
+      h('span', { class: 'wrong-times', 'aria-hidden': 'true' }, `×${w.count}`)));
   }
 }
 

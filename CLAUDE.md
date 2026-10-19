@@ -12,12 +12,14 @@
 - `data/cards.json`: 카드와 퀴즈 내용. 형식은 `data/README.md`
 - `lib/highlight.js`: SQL 문법 색칠(연습창과 카드 예시 SQL이 함께 씀)
 - `vendor/sql-wasm.js`, `vendor/sql-wasm.wasm`: sql.js 1.10.3 (오프라인용으로 저장소에 포함, CDN 사용 금지)
-- `fonts/`: D2Coding 1.3.2 원본 TTF와 라이선스(OFL 1.1). 'D2Coding'은 예약 글꼴 이름이라 파일을 고치거나 서브셋하지 않는다(`fonts/README.md`)
+- `fonts/`: D2Coding 1.3.2(코드), 나눔고딕(본문), 개구 Bold(제목) 원본 TTF와 라이선스(모두 OFL 1.1). 'D2Coding'·'Nanum'은 예약 글꼴 이름이라 파일을 고치거나 서브셋하지 않는다(`fonts/README.md`)
 
-## 화면(코드 에디터 테마)
+## 화면(손때 묻은 오답노트 테마)
 
 - 왼쪽 탐색기(과목 → 단원 트리) | 가운데 탭(개념 카드·오늘의 퀴즈·오답노트) | 오른쪽 SQL 연습창(줄 번호·문법 색, 터미널 출력) | 아래 상태 표시줄.
   1100px 미만에서는 연습창이 아래로, 860px 이하(폰)에서는 모두 위아래로 쌓이고 탐색기는 ☰로 접는다.
+- 모눈 공책, 스프링, 형광펜 요약, 포스트잇 함정, 오려 붙인 오답, 메모지 연습창. 손글씨(개구)는 제목에만, 본문은 나눔고딕.
+  예전 코드 에디터 테마는 main 역사에, OMR 답안지 시안은 `design-omr` 브랜치에 남아 있다.
 - 색은 `style.css`의 `:root` 변수로만 쓴다. 새 색을 넣으면 `tests/tests.js`의 대비 검사(4.5:1)에 짝을 추가한다.
 - 진도는 `state.solved`(한 번이라도 맞힌 문제)와 오답노트로 계산한다. 단원 완료 = 단원의 모든 문제를 맞혔고 오답노트에 남은 것이 없음.
 - 디자인을 바꿀 때는 `python tests/shots.py before` → 수정 → `python tests/shots.py after`로 `screenshots/compare.html`에서 전후를 비교한다.

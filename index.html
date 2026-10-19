@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SQLD 공부</title>
-  <meta name="theme-color" content="#16191d">
+  <meta name="theme-color" content="#efe8d8">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
@@ -15,7 +15,11 @@
       <button type="button" class="icon-btn" id="btn-tree" aria-controls="explorer" aria-expanded="true" title="탐색기 열고 닫기">
         <span aria-hidden="true">☰</span><span class="sr-only">탐색기</span>
       </button>
-      <h1 class="app-title">SQLD 공부</h1>
+      <!-- 공책 표지에 붙인 이름표 -->
+      <div class="name-label">
+        <h1 class="app-title">SQLD 공부</h1>
+        <span class="name-sub">오답노트 · SQL 개발자</span>
+      </div>
       <span class="title-path" id="title-path"></span>
       <div class="titlebar-actions">
         <button type="button" class="ghost" id="btn-export">백업 내보내기</button>
@@ -26,7 +30,7 @@
 
     <main class="layout">
       <nav class="explorer" id="explorer" aria-label="과목과 단원">
-        <div class="pane-head">탐색기</div>
+        <div class="pane-head"><span>차 례</span></div>
         <div class="tree" id="tree"></div>
       </nav>
 
@@ -45,7 +49,7 @@
         <div class="pane-head">
           <span>SQL 연습</span>
           <span class="pane-head-right">
-            <span class="file-name">practice.sql</span>
+            <span class="file-name">메모지</span>
             <button type="button" class="icon-btn" id="btn-practice-close" aria-controls="practice" aria-expanded="true" title="SQL 연습창 접기">
               <span aria-hidden="true">⟩</span><span class="sr-only">SQL 연습창 접기</span>
             </button>
@@ -69,7 +73,7 @@
             <button type="button" id="btn-reset-db" title="예제 테이블을 처음 상태로 되돌려요">테이블 초기화</button>
           </div>
           <div class="terminal">
-            <div class="terminal-head"><span>출력</span><span class="terminal-tag">sqlite</span></div>
+            <div class="terminal-head"><span>결과</span><span class="terminal-tag">SQLite</span></div>
             <div class="terminal-body" id="sql-result" aria-live="polite"></div>
           </div>
         </div>
@@ -86,8 +90,7 @@
       <span class="st-item" id="st-wrong">오답 0</span>
       <span class="st-item" id="st-today">오늘 푼 문제 0</span>
       <span class="st-spacer"></span>
-      <span class="st-item st-dim">SQLite</span>
-      <span class="st-item st-dim">UTF-8</span>
+      <span class="st-item st-dim">틀린 문제는 다시 맞힐 때까지 이 공책에 남아요</span>
     </footer>
   </div>
 
