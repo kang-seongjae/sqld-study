@@ -13,3 +13,19 @@
   - 'D2Coding'은 예약된 글꼴 이름(Reserved Font Name)이라, 글꼴을 고친 파일(서브셋·변환 포함)은 이 이름을 쓸 수 없다.
     그래서 원본 파일을 바꾸지 않고 그대로 둔다.
 - 앱에서는 `style.css`의 `@font-face`로 코드·SQL에만 쓴다. `sw.js`가 캐시해서 인터넷이 없어도 나온다.
+
+## 나눔고딕 · 개구 (design-note 디자인)
+
+- 파일(원본 그대로, 수정·서브셋하지 않음)
+  - `NanumGothic-Regular.ttf`, `NanumGothic-Bold.ttf`: 본문
+  - `Gaegu-Bold.ttf`: 제목에만 쓰는 손글씨
+- 출처: google/fonts 저장소 `ofl/nanumgothic`(원 제작 NHN Corporation), `ofl/gaegu`(The Gaegu Project Authors)
+  https://github.com/google/fonts/tree/main/ofl/nanumgothic
+  https://github.com/google/fonts/tree/main/ofl/gaegu
+- SHA-256
+  - `NanumGothic-Regular.ttf` `76f45ef4a6bcff344c837c95a7dcc26e017e38b5846d5ae0cdcb5b86be2e2d31`
+  - `NanumGothic-Bold.ttf` `f96298f9fb18e364d2370f4c3ce948ac67a2b61af992d7234bc15c42b033c674`
+  - `Gaegu-Bold.ttf` `cc38a4af9506a45254d1ce07c589ec473d9e5f0be319e5a77b17c214903f8c1c`
+- 라이선스: 둘 다 SIL Open Font License 1.1 (전문: `OFL-Nanum.txt`, `OFL-Gaegu.txt`, google/fonts에 함께 있는 파일)
+  - 개구는 파일 안 라이선스 항목(name ID 13)에 OFL 1.1이 적혀 있고 예약 글꼴 이름이 없다.
+  - 나눔고딕은 그 항목에 저작권자만 적혀 있지만 google/fonts에서 OFL로 배포되고, 'Nanum' 등이 예약 글꼴 이름이라 원본을 고치지 않는다.

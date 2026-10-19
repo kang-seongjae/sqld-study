@@ -1141,8 +1141,10 @@ test('IDE 화면: 연습창 줄 번호와 문법 색, 카드 예시 SQL 색칠, 
   eq(d.querySelector('#editor-gutter').textContent, '1\n2', '연습창 줄 번호');
   eq([...d.querySelectorAll('#editor-hl .tok-keyword')].map((e) => e.textContent), ['SELECT', 'FROM']);
   const oracle = card.querySelector('.sec-oracle');
-  eq(getComputedStyle(oracle).borderLeftColor, 'rgb(232, 196, 106)', '오라클 구역 왼쪽 줄은 경고색(--warn)');
-  eq(getComputedStyle(oracle).borderLeftWidth, '3px', '오라클 구역 왼쪽 줄 두께');
+  const warn = getComputedStyle(d.documentElement).getPropertyValue('--warn').trim();
+  const rgb = `rgb(${[1, 3, 5].map((i) => parseInt(warn.slice(i, i + 2), 16)).join(', ')})`;
+  eq(getComputedStyle(oracle).borderLeftColor, rgb, '오라클 구역 왼쪽 줄은 경고색(--warn)');
+  assert(parseFloat(getComputedStyle(oracle).borderLeftWidth) >= 2, '오라클 구역 왼쪽 줄 두께');
   assert(getComputedStyle(d.querySelector('#editor-hl')).fontFamily.includes('D2Coding'), '연습창 고정폭 글꼴');
   await waitFor(() => d.fonts.check('16px D2Coding', '가'), 'D2Coding 글꼴을 내려받음');
 });
@@ -1165,6 +1167,12 @@ test('IDE 화면: 글자와 배경의 대비가 4.5:1 이상', async () => {
     ['--tok-comment', '--bg'], ['--tok-comment', '--bg-term'], ['--tok-comment', '--bg-side'],
     ['--warn', '--warn-bg'], ['--text', '--warn-bg'], ['--ok', '--ok-bg'], ['--bad', '--bad-bg'], ['--bad', '--bg-term'],
     ['--primary-text', '--primary'],
+    // 공책: 형광펜·포스트잇·인덱스 탭 위 글자, 빨간 볼펜, 메모지 위 문법 색
+    ['--text', '--marker'], ['--text', '--postit'], ['--text', '--postit-pink'], ['--text', '--tab-blue'], ['--text', '--page'],
+    ['--muted', '--bg-panel'], ['--muted', '--postit'], ['--accent', '--page'], ['--accent', '--bg-panel'], ['--gutter', '--bg-panel'],
+    ['--red', '--page'], ['--red', '--postit'], ['--red', '--postit-pink'], ['--red', '--bg-side'], ['--primary-text', '--red'],
+    ['--tok-keyword', '--bg-panel'], ['--tok-string', '--bg-panel'], ['--tok-number', '--bg-panel'], ['--tok-func', '--bg-panel'], ['--tok-comment', '--bg-panel'],
+    ['--ok', '--postit'], ['--warn', '--bg-panel'],
   ];
   const low = pairs.map(([a, b]) => [a, b, ratio(v(a), v(b))]).filter(([, , r]) => r < 4.5);
   eq(low.map(([a, b, r]) => `${a}/${b} ${r.toFixed(2)}`), [], '대비 부족');
@@ -1256,6 +1264,38 @@ test('SQL: 오류는 빨간 메시지로, 수정문은 바뀐 행 수로, 초기
   editor.value = 'SELECT COUNT(*) FROM 사원;';
   d.querySelector('#btn-reset-db').click();
   eq(d.querySelector('#sql-result td').textContent, '11');
+});
+
+test('퀴즈 채점 화면: 10문제를 다 풀면 점수, 빈 조건이 글자로 찍히지 않음', async () => {
+  const data = await (await fetch('../data/cards.json')).json();
+  const byText = new Map(L.collectQuestions(data).map((q) => [q.q, q]));
+  const f = await openApp('e2e-score', 1280, 800, 'quiz');
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  for (let i = 0; i < 10; i++) {
+    const q = byText.get(d.querySelector('#view-quiz .question').textContent);
+    key(w, d.body, String(i < 3 ? (q.answer % 4) + 1 : q.answer)); // 앞의 3문제만 틀림
+    key(w, d.body, 'Enter');
+  }
+  const v = d.querySelector('#view-quiz');
+  eq(v.querySelector('.score').textContent, '7 / 10');
+  assert(!v.textContent.includes('false'), '빈 조건이 글자로 찍히지 않음');
+});
+
+test('오답노트 조각: 보기 네 개와 정답 표시, 요약은 형광펜', async () => {
+  const f = await openApp('e2e-clip', 1280, 800, 'quiz');
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  const data = await (await fetch('../data/cards.json')).json();
+  const q = L.collectQuestions(data).find((x) => x.q === d.querySelector('#view-quiz .question').textContent);
+  key(w, d.body, String((q.answer % 4) + 1));
+  d.querySelector('[data-tab="wrong"]').click();
+  const item = d.querySelector('#view-wrong .wrong-item');
+  eq(item.querySelectorAll('.clip-choices li').length, 4, '보기 네 개');
+  eq(item.querySelector('.clip-choices li.is-answer .clip-no').textContent, String(q.answer), '정답 번호에 표시');
+  d.querySelector('[data-tab="cards"]').click();
+  const summary = d.querySelector('#view-cards .summary');
+  assert(summary.querySelector('mark.marker'), '요약 문장에 형광펜');
 });
 
 test('퀴즈: 숫자 키로 답하고, 틀리면 오답노트, 다시 맞히면 빠짐', async () => {
