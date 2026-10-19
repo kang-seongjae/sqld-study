@@ -94,6 +94,7 @@ const DONE_UNITS = [
   '정규 표현식',
   'DML',
   'TCL',
+  'DDL',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -752,6 +753,66 @@ test('TCL 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
   const e = await seededDb();
   assert(e.fails('BEGIN; SAVEPOINT a; SAVEPOINT b; ROLLBACK TO SAVEPOINT a; ROLLBACK TO SAVEPOINT b'), 'a로 되돌리면 b는 사라짐');
   e.db.close();
+});
+
+test('DDL 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  // 제약조건 카드: CHECK는 NULL 통과, DEFAULT는 생략할 때만, 조합 UNIQUE
+  db.exec("CREATE TABLE 수강신청 (신청번호 INTEGER, 사원번호 INTEGER NOT NULL, 과정명 VARCHAR2(50) NOT NULL, 점수 NUMBER(3) CHECK (점수 BETWEEN 0 AND 100), 상태 VARCHAR2(10) DEFAULT '신청', CONSTRAINT 수강신청_PK PRIMARY KEY (신청번호), CONSTRAINT 수강신청_UK UNIQUE (사원번호, 과정명))");
+  db.exec("INSERT INTO 수강신청 (신청번호, 사원번호, 과정명, 점수) VALUES (1, 1008, 'SQL 기초', 85)");
+  db.exec("INSERT INTO 수강신청 (신청번호, 사원번호, 과정명) VALUES (2, 1009, 'SQL 기초')");
+  eq(rows('SELECT 점수, 상태 FROM 수강신청 ORDER BY 신청번호'), [[85, '신청'], [null, '신청']]);
+  assert(fails("INSERT INTO 수강신청 (신청번호, 사원번호, 과정명) VALUES (3, 1008, 'SQL 기초')"), '조합 UNIQUE');
+  assert(fails("INSERT INTO 수강신청 (신청번호, 사원번호, 과정명, 점수) VALUES (4, 1010, 'A', 120)"), 'CHECK');
+  db.exec('CREATE TABLE d (번호 INTEGER, 점수 INTEGER DEFAULT 0); INSERT INTO d (번호, 점수) VALUES (1, NULL); INSERT INTO d (번호) VALUES (2)');
+  eq(rows('SELECT 점수 FROM d ORDER BY 번호').flat(), [null, 0], 'DEFAULT는 생략할 때만');
+  db.exec('CREATE TABLE u (a INTEGER UNIQUE); INSERT INTO u VALUES (NULL); INSERT INTO u VALUES (NULL)');
+  eq(one('SELECT COUNT(*) FROM u'), [2], 'UNIQUE는 NULL 여러 번');
+  // 외래키 카드: 기본은 검사 꺼짐, 켜면 CASCADE·SET NULL·거부, ON UPDATE CASCADE 지원
+  db.exec('CREATE TABLE p0 (id INTEGER PRIMARY KEY); CREATE TABLE c0 (id INTEGER, pid INTEGER REFERENCES p0(id) ON DELETE CASCADE); INSERT INTO p0 VALUES (1); INSERT INTO c0 VALUES (10, 1); DELETE FROM p0');
+  eq(one('SELECT COUNT(*) FROM c0'), [1], '검사가 꺼져 있으면 CASCADE도 안 됨');
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('CREATE TABLE p1 (id INTEGER PRIMARY KEY); CREATE TABLE c1 (id INTEGER, pid INTEGER REFERENCES p1(id) ON DELETE CASCADE); INSERT INTO p1 VALUES (1), (2); INSERT INTO c1 VALUES (10, 1), (11, 1), (12, 2); DELETE FROM p1 WHERE id = 1');
+  eq(rows('SELECT id FROM c1').flat(), [12], 'CASCADE');
+  db.exec('CREATE TABLE p2 (id INTEGER PRIMARY KEY); CREATE TABLE c2 (id INTEGER, pid INTEGER REFERENCES p2(id) ON DELETE SET NULL); INSERT INTO p2 VALUES (1); INSERT INTO c2 VALUES (10, 1); DELETE FROM p2');
+  eq(rows('SELECT pid FROM c2').flat(), [null], 'SET NULL');
+  db.exec('CREATE TABLE p3 (id INTEGER PRIMARY KEY); CREATE TABLE c3 (id INTEGER, pid INTEGER REFERENCES p3(id)); INSERT INTO p3 VALUES (1); INSERT INTO c3 VALUES (10, 1)');
+  assert(fails('DELETE FROM p3'), '옵션 없으면 부모 삭제 거부');
+  assert(fails('INSERT INTO c3 VALUES (11, 99)'), '없는 부모 값 거부');
+  db.exec('CREATE TABLE p4 (id INTEGER PRIMARY KEY); CREATE TABLE c4 (id INTEGER, pid INTEGER REFERENCES p4(id) ON UPDATE CASCADE); INSERT INTO p4 VALUES (1); INSERT INTO c4 VALUES (10, 1); UPDATE p4 SET id = 5');
+  eq(one('SELECT pid FROM c4'), [5], 'ON UPDATE CASCADE');
+  db.exec('PRAGMA foreign_keys = OFF');
+  // CTAS 카드: 제약조건이 하나도 안 따라옴, 별칭 없는 식도 컬럼이 됨, WHERE 1 = 2는 빈 테이블
+  db.exec("CREATE TABLE src (a INTEGER NOT NULL PRIMARY KEY, b TEXT NOT NULL); INSERT INTO src VALUES (1, 'x'); CREATE TABLE cp AS SELECT * FROM src");
+  eq(rows('SELECT "notnull", pk FROM pragma_table_info(\'cp\')'), [[0, 0], [0, 0]], 'NOT NULL·PK 모두 안 따라옴');
+  db.exec('CREATE TABLE ex AS SELECT 이름, 급여 * 12 FROM 사원 WHERE 부서번호 = 10');
+  eq(rows("SELECT name FROM pragma_table_info('ex')").flat(), ['이름', '급여 * 12']);
+  db.exec('CREATE TABLE 빈사원 AS SELECT * FROM 사원 WHERE 1 = 2');
+  eq(one('SELECT COUNT(*) FROM 빈사원'), [0]);
+  // ALTER 카드: ADD COLUMN·RENAME은 되고 MODIFY·괄호 ADD·ADD CONSTRAINT·RENAME 문장은 안 됨
+  db.exec('CREATE TABLE t (a INTEGER, b TEXT); INSERT INTO t VALUES (1, \'x\'); ALTER TABLE t ADD COLUMN c TEXT DEFAULT \'미정\'; ALTER TABLE t RENAME COLUMN b TO bb; ALTER TABLE t DROP COLUMN a');
+  eq(rows("SELECT name FROM pragma_table_info('t')").flat(), ['bb', 'c']);
+  eq(one('SELECT c FROM t'), ['미정'], '기존 행에 DEFAULT');
+  for (const bad of ['ALTER TABLE t MODIFY (c VARCHAR2(100))', 'ALTER TABLE t ADD (d TEXT)',
+    'ALTER TABLE t ADD CONSTRAINT t_pk PRIMARY KEY (bb)', 'RENAME t TO t2', 'TRUNCATE TABLE t',
+    'DROP TABLE t CASCADE CONSTRAINTS', 'CREATE TABLE 2026_EMP (a INTEGER)', 'CREATE TABLE z (a INTEGER, b TEXT,)']) {
+    assert(fails(bad), `SQLite에서 안 돼야 함: ${bad}`);
+  }
+  // 오라클과 다른 점으로 적은 것: 길이 미검사, TEXT 기본키의 NULL, NOT NULL에 '', 트랜잭션 안 DROP 되돌리기
+  db.exec("CREATE TABLE v (a VARCHAR2(5)); INSERT INTO v VALUES ('abcdefghij')");
+  eq(one('SELECT length(a) FROM v'), [10]);
+  db.exec('CREATE TABLE k (a TEXT PRIMARY KEY, b INTEGER); INSERT INTO k VALUES (NULL, 1); INSERT INTO k VALUES (NULL, 2)');
+  eq(one('SELECT COUNT(*) FROM k'), [2]);
+  db.exec('CREATE TABLE ik (a INTEGER PRIMARY KEY, b INTEGER); INSERT INTO ik VALUES (NULL, 1)');
+  eq(one('SELECT a FROM ik'), [1], 'INTEGER PRIMARY KEY는 자동 번호');
+  db.exec("CREATE TABLE nn (a TEXT NOT NULL); INSERT INTO nn VALUES ('')");
+  eq(one('SELECT COUNT(*) FROM nn'), [1]);
+  db.exec('BEGIN; DROP TABLE nn; ROLLBACK');
+  eq(one('SELECT COUNT(*) FROM nn'), [1], 'DROP도 ROLLBACK');
+  // DROP/TRUNCATE/DELETE 카드 예시의 건수
+  db.exec('CREATE TABLE 임시사원 AS SELECT * FROM 사원; DELETE FROM 임시사원 WHERE 부서번호 = 20');
+  eq(one('SELECT COUNT(*) FROM 임시사원'), [7]);
+  db.close();
 });
 
 // ---------- 실제 앱 화면 (iframe) ----------
