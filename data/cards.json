@@ -470,7 +470,241 @@
             }
           ]
         },
-        { "group": "SQL 기본", "name": "함수", "cards": [] },
+        {
+          "group": "SQL 기본",
+          "name": "함수",
+          "cards": [
+            {
+              "id": "func-overview",
+              "title": "함수 한눈에: 단일행 함수와 다중행 함수",
+              "summary": "함수는 값을 넣으면 가공한 값을 돌려준다. 행마다 결과를 하나씩 내면 단일행 함수, 여러 행을 묶어 결과 하나를 내면 다중행(집계) 함수다.",
+              "desc": "SELECT 절에서 급여 * 12처럼 계산식을 썼듯이, 함수를 쓰면 값을 더 다양하게 가공할 수 있다. 함수는 '함수이름(입력값)' 모양으로 쓰고, 괄호 안의 입력값을 인자라고 부른다.\n단일행 함수: 행 하나를 받아 결과 하나를 낸다. 11행에 쓰면 결과도 11행이다. LENGTH(이름), SUBSTR(입사일, 1, 4)처럼 문자·숫자·날짜를 가공한다.\n다중행 함수(집계 함수): 여러 행을 받아 결과 하나를 낸다. COUNT(*), SUM(급여), AVG(급여)처럼 개수·합계·평균을 구한다. 다음 단원(GROUP BY·HAVING 절)에서 자세히 다룬다.\n단일행 함수는 SELECT, WHERE, ORDER BY 등 값이 들어가는 곳 어디에나 쓸 수 있고, 함수 안에 함수를 겹쳐 쓸 수도 있다(중첩). 중첩하면 안쪽 함수부터 계산한다.\n함수는 결과를 바꿔 보여 줄 뿐, 테이블에 저장된 원래 값은 바꾸지 않는다.",
+              "analogy": "단일행 함수는 붕어빵 틀이다. 반죽 하나를 넣으면 붕어빵 하나가 나온다. 다중행 함수는 계산대의 합계 버튼이다. 물건 여러 개를 찍으면 합계 금액 하나가 나온다.",
+              "sql": "SELECT 이름, LENGTH(이름) AS 글자수,\n       SUBSTR(입사일, 1, 4) AS 입사연도\nFROM 사원\nWHERE 부서번호 = 30;\n\nSELECT COUNT(*) AS 인원, SUM(급여) AS 급여합계\nFROM 사원\nWHERE 부서번호 = 30;",
+              "pitfalls": [
+                "단일행 함수를 써도 결과 행 수는 그대로다. 행 수가 줄어드는 것은 집계 함수를 썼을 때다. 예시의 첫 SQL은 4행, 두 번째 SQL은 1행이다.",
+                "중첩 함수는 안쪽부터 계산한다. UPPER(SUBSTR('sqld', 1, 3))는 SUBSTR가 먼저 'sql'을 만들고 UPPER가 'SQL'로 바꾼다.",
+                "한 SELECT에 행마다 다른 값(이름)과 집계 결과(COUNT(*))를 그냥 섞어 쓰면 오라클에서 오류다. 결과 행 수가 서로 맞지 않기 때문이다. 이 문제는 GROUP BY 단원에서 풀린다."
+              ],
+              "oracle": [
+                "함수 이름: 단일행 함수는 DBMS마다 이름과 모양이 가장 많이 다른 부분이다. 이 단원의 카드마다 오라클 함수와 SQLite에서 대신 쓰는 함수를 적어 두었다.",
+                "행 값과 집계 섞기: SELECT 이름, COUNT(*) FROM 사원 은 오라클에서 오류지만, SQLite는 아무 행에서 이름 하나를 골라 결과를 내 버린다."
+              ],
+              "exam": "단일행 함수와 다중행 함수의 특징을 구분하는 문제, 중첩 함수의 계산 결과를 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "단일행 함수에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["행마다 결과를 하나씩 돌려준다", "SELECT 절뿐 아니라 WHERE 절에도 쓸 수 있다", "함수 안에 다른 함수를 넣어 중첩할 수 있다", "여러 행을 묶어 결과 하나로 만든다"],
+                  "answer": 4,
+                  "explain": "여러 행을 묶어 결과 하나를 내는 것은 다중행(집계) 함수다."
+                },
+                {
+                  "q": "UPPER(SUBSTR('database', 5, 4))의 결과는?",
+                  "choices": ["'DATA'", "'BASE'", "'base'", "'DATABASE'"],
+                  "answer": 2,
+                  "explain": "안쪽의 SUBSTR('database', 5, 4)가 다섯 번째 글자부터 네 글자인 'base'를 먼저 만들고, 바깥의 UPPER가 대문자 'BASE'로 바꾼다."
+                }
+              ]
+            },
+            {
+              "id": "func-string",
+              "title": "문자 함수",
+              "summary": "문자 함수로 대소문자를 바꾸고, 글자 수를 세고, 일부를 잘라 내고, 공백이나 특정 글자를 지우거나 바꾼다.",
+              "desc": "자주 쓰는 문자 함수(오라클 기준)\n· UPPER(값) / LOWER(값): 영문을 대문자 / 소문자로. INITCAP(값): 단어의 첫 글자만 대문자로.\n· LENGTH(값): 글자 수. LENGTH('SQL 개발') = 6 (공백도 한 글자).\n· SUBSTR(값, 시작위치, 글자수): 일부를 잘라 낸다. 위치는 1부터 센다. 글자수를 빼면 끝까지 자른다. 시작위치가 음수면 뒤에서부터 센다.\n· INSTR(값, 찾을문자): 찾을 문자가 처음 나오는 위치. 없으면 0.\n· LTRIM / RTRIM / TRIM: 왼쪽 / 오른쪽 / 양쪽 끝의 공백(또는 지정한 글자)을 지운다.\n· LPAD(값, 길이, 채울문자) / RPAD: 왼쪽 / 오른쪽을 채워 길이를 맞춘다. LPAD('7', 3, '0') = '007'\n· REPLACE(값, 찾을문자, 바꿀문자): 찾은 문자를 모두 바꾼다. 바꿀문자를 빼면 지운다.\n· CONCAT(값1, 값2) 또는 || : 문자열을 잇는다.",
+              "analogy": "문구 세트와 같다. UPPER·LOWER는 글씨체를 바꾸는 도장, SUBSTR는 가위, TRIM은 양 끝을 다듬는 지우개, REPLACE는 수정 테이프, ||는 풀이다.",
+              "sql": "SELECT 입사일,\n       SUBSTR(입사일, 1, 4) AS 연도,\n       SUBSTR(입사일, 6, 2) AS 월,\n       REPLACE(입사일, '-', '') AS 숫자만,\n       INSTR(입사일, '-') AS 첫하이픈위치,\n       UPPER('sql') || '-' || LOWER('DEV') AS 대소문자\nFROM 사원\nWHERE 부서번호 = 10;",
+              "pitfalls": [
+                "SUBSTR의 시작 위치는 0이 아니라 1부터 센다. SUBSTR('SQLD', 2, 2)는 'QL'이다.",
+                "TRIM은 양 끝만 지운다. 값 중간의 공백은 그대로 남는다.",
+                "LTRIM('xxSQLxx', 'x')처럼 두 번째 인자를 주면 공백 대신 그 글자를 왼쪽에서 지운다. 결과는 'SQLxx'다.",
+                "REPLACE는 일치하는 부분을 '모두' 바꾼다. 처음 하나만 바꾸는 것이 아니다."
+              ],
+              "oracle": [
+                "SQLite에 없는 함수: INITCAP, LPAD, RPAD는 SQLite에 없다. 연습창에서 쓰면 'no such function' 오류가 난다.",
+                "TRIM 문법: 오라클은 TRIM(LEADING 'x' FROM 값)처럼 LEADING / TRAILING / BOTH와 FROM을 쓰는 형태가 있다. SQLite는 이 형태를 모르고 TRIM(값, 'x')처럼 쓴다. LTRIM(값, 'x'), RTRIM(값, 'x')는 둘이 같다.",
+                "CONCAT: 오라클의 CONCAT은 인자를 딱 2개만 받는다. 세 개를 이으려면 CONCAT(CONCAT(a, b), c)나 ||를 쓴다. SQLite의 CONCAT은 여러 개를 받는다."
+              ],
+              "exam": "SUBSTR·INSTR·LENGTH·TRIM·REPLACE를 중첩한 식의 결과를 계산하게 하는 문제가 많다. 시작 위치가 음수인 SUBSTR, 두 번째 인자가 있는 LTRIM·RTRIM이 함정으로 나온다.",
+              "quiz": [
+                {
+                  "q": "SUBSTR('SQLDEVELOPER', -5, 3)의 결과는?",
+                  "choices": ["'LOP'", "'OPE'", "'PER'", "'DEV'"],
+                  "answer": 1,
+                  "explain": "시작 위치가 -5이면 뒤에서 다섯 번째 글자부터 센다. 'SQLDEVELOPER'의 뒤 다섯 글자는 'LOPER'이므로, 거기서 세 글자를 자르면 'LOP'다."
+                },
+                {
+                  "q": "LENGTH(RTRIM('SQLD  ')) + INSTR('SQLD', 'L')의 결과는?",
+                  "choices": ["5", "6", "7", "9"],
+                  "answer": 3,
+                  "explain": "RTRIM이 오른쪽 공백 두 칸을 지워 'SQLD'(4글자)가 되고, INSTR('SQLD', 'L')은 L이 세 번째에 있으므로 3이다. 4 + 3 = 7."
+                }
+              ]
+            },
+            {
+              "id": "func-number",
+              "title": "숫자 함수",
+              "summary": "숫자 함수로 반올림(ROUND), 버림(TRUNC), 올림(CEIL), 내림(FLOOR), 나머지(MOD), 절댓값(ABS)을 구한다.",
+              "desc": "· ROUND(숫자, 자리): 지정한 자리까지 남기고 반올림한다. 자리를 빼면 정수로. ROUND(1234.567, 1) = 1234.6\n· TRUNC(숫자, 자리): 지정한 자리 아래를 버린다. TRUNC(1234.567, 1) = 1234.5\n· 자리에 음수를 주면 소수점 왼쪽(정수 부분)에서 처리한다. ROUND(1234.567, -2) = 1200 (십의 자리에서 반올림해 백의 자리까지 남김)\n· CEIL(숫자): 그 수보다 크거나 같은 가장 작은 정수(올림). CEIL(3.1) = 4, CEIL(-3.1) = -3\n· FLOOR(숫자): 그 수보다 작거나 같은 가장 큰 정수(내림). FLOOR(3.9) = 3, FLOOR(-3.1) = -4\n· MOD(a, b): a를 b로 나눈 나머지. MOD(7, 3) = 1\n· ABS(숫자): 절댓값. SIGN(숫자): 양수면 1, 0이면 0, 음수면 -1\n예시 SQL은 급여를 7로 나눈 값에 여러 함수를 써 본다. 7 / 2 = 3이 되는 SQLite의 정수 나눗셈(SELECT 기본 단원)을 피하려고 7.0으로 나눈다.",
+              "analogy": "물건값 계산과 같다. 1,234원을 '백 원 단위로 반올림'하면 1,200원(ROUND(1234, -2)), 천 원짜리 지폐로만 낸다면 올림해서 2,000원어치(CEIL), 잔돈을 버린다면 내림이다.",
+              "sql": "SELECT 이름, 급여,\n       급여 / 7.0 AS 나누기7,\n       ROUND(급여 / 7.0, 1) AS 반올림,\n       CEIL(급여 / 7.0) AS 올림,\n       FLOOR(급여 / 7.0) AS 내림,\n       급여 % 7 AS 나머지\nFROM 사원\nWHERE 부서번호 = 20;",
+              "pitfalls": [
+                "CEIL과 FLOOR는 음수에서 헷갈린다. CEIL(-3.1)은 -4가 아니라 -3(더 큰 쪽), FLOOR(-3.1)은 -4(더 작은 쪽)다.",
+                "TRUNC는 0 쪽으로 버린다. 양수에서는 FLOOR와 같지만 음수에서는 다르다. TRUNC(-3.7) = -3, FLOOR(-3.7) = -4.",
+                "ROUND의 자리에 음수를 주면 정수 부분에서 반올림한다. ROUND(1250, -2) = 1300."
+              ],
+              "oracle": [
+                "SQLite에 없는 함수: TRUNC와 MOD가 없다. 나머지는 % 연산자(급여 % 7)로 구하고, 소수점 버림은 CAST(값 AS INTEGER)로 비슷하게 할 수 있다. 반대로 오라클에는 % 연산자가 없고 MOD 함수를 쓴다.",
+                "ROUND의 음수 자리: 오라클은 ROUND(1234.567, -2) = 1200이지만, SQLite는 음수 자리를 0으로 보고 1235를 돌려준다. 정수 부분 반올림 문제는 오라클 기준으로 계산하자.",
+                "0으로 나누기: 오라클은 오류(제수가 0)가 나지만, SQLite는 NULL을 돌려준다."
+              ],
+              "exam": "ROUND, TRUNC, CEIL, FLOOR에 음수 자리나 음수 값을 넣은 결과를 계산하는 문제가 대표적이다. MOD의 결과를 묻는 문제도 나온다.",
+              "quiz": [
+                {
+                  "q": "결과가 다른 하나는?",
+                  "choices": ["CEIL(-2.5)", "TRUNC(-2.5)", "FLOOR(-2.5)", "ROUND(-2.4)"],
+                  "answer": 3,
+                  "explain": "CEIL(-2.5)는 -2.5보다 크거나 같은 가장 작은 정수라서 -2, TRUNC(-2.5)는 소수점 아래를 버려 -2, ROUND(-2.4)도 -2다. FLOOR(-2.5)만 더 작은 쪽인 -3이다."
+                },
+                {
+                  "q": "오라클에서 ROUND(5678.9, -2)의 결과는?",
+                  "choices": ["5600", "5678", "5700", "5679"],
+                  "answer": 3,
+                  "explain": "자리 -2는 백의 자리까지 남기고 십의 자리에서 반올림하라는 뜻이다. 십의 자리가 7이므로 올려서 5700이다."
+                }
+              ]
+            },
+            {
+              "id": "func-date",
+              "title": "날짜 함수",
+              "summary": "오라클은 SYSDATE로 현재 날짜를 얻고, 날짜에 숫자를 더하고 빼서 며칠 뒤·며칠 전을 계산한다.",
+              "desc": "오라클에서 날짜 다루기\n· SYSDATE: 지금 날짜와 시각.\n· 날짜 + 숫자 = 그 일수만큼 뒤의 날짜. SYSDATE + 7은 일주일 뒤. 날짜 - 숫자는 그만큼 앞의 날짜.\n· 날짜 - 날짜 = 두 날짜 사이의 일수(숫자).\n· 날짜 + 1/24 = 1시간 뒤. 하루를 1로 보기 때문이다.\n· ADD_MONTHS(날짜, n): n개월 뒤. MONTHS_BETWEEN(날짜1, 날짜2): 두 날짜 사이의 개월 수.\n· EXTRACT(YEAR FROM 날짜): 날짜에서 연·월·일만 꺼낸다.\n· TO_CHAR(날짜, 'YYYY-MM-DD'): 날짜를 원하는 모양의 문자로 바꾼다(변환 함수 카드).\nSQLite에는 DATE 타입과 SYSDATE가 없어서, 예시 SQL은 SQLite의 date()·strftime()·julianday() 함수로 같은 계산을 한다. 문법은 달라도 '날짜에 일수를 더하고 빼고, 연도를 꺼낸다'는 생각은 같다.",
+              "analogy": "달력 위에 손가락을 올려놓고 '여기서 일곱 칸 뒤'를 세는 것과 같다. 오라클에서 날짜는 숫자처럼 더하고 뺄 수 있는 '달력 위의 위치'다.",
+              "sql": "SELECT 이름, 입사일,\n       date(입사일, '+3 months') AS 수습종료일,\n       date(입사일, '+100 days') AS 입사100일,\n       strftime('%Y', 입사일) AS 입사연도,\n       CAST(julianday('2026-01-01') - julianday(입사일) AS INTEGER) AS 근무일수_2026년초\nFROM 사원\nWHERE 입사일 >= '2022-01-01';",
+              "pitfalls": [
+                "날짜 + 날짜는 할 수 없다. 날짜끼리는 빼기(일수 차이)만 된다.",
+                "오라클에서 날짜 - 날짜는 '일수'이고, 시각까지 들어 있으면 소수가 나온다. 개월 차이는 MONTHS_BETWEEN을 쓴다.",
+                "SYSDATE에는 시각도 들어 있다. 오늘 날짜끼리 비교할 때 시각 때문에 같지 않다고 나올 수 있어서, TRUNC(SYSDATE)로 시각을 0시로 잘라 쓰기도 한다(날짜에 쓰는 TRUNC)."
+              ],
+              "oracle": [
+                "함수가 통째로 다르다: 오라클의 SYSDATE, ADD_MONTHS, MONTHS_BETWEEN, EXTRACT, '날짜 + 숫자' 계산은 SQLite에서 안 된다. SQLite는 date(값, '+3 months'), strftime('%Y', 값), julianday(값) 같은 함수를 쓴다.",
+                "월말 처리: 오라클에서 2024년 1월 31일에 ADD_MONTHS(..., 1)을 하면 2월의 마지막 날(2024-02-29)이 된다. SQLite의 date('2024-01-31', '+1 month')는 날짜가 넘쳐서 2024-03-02가 된다.",
+                "현재 날짜: 오라클은 SYSDATE, SQLite는 date('now') 또는 CURRENT_DATE를 쓴다."
+              ],
+              "exam": "SYSDATE에 숫자를 더하고 뺀 결과, 날짜 - 날짜의 결과(일수), 1/24 같은 분수의 의미(1시간)를 묻는다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 SYSDATE + 1/24 가 뜻하는 것은?",
+                  "choices": ["하루 뒤", "1시간 뒤", "1분 뒤", "24일 뒤"],
+                  "answer": 2,
+                  "explain": "오라클은 하루를 1로 계산한다. 1/24일은 24시간 중 1시간이므로 1시간 뒤다. 1분 뒤는 1/(24*60)이다."
+                },
+                {
+                  "q": "오라클의 날짜 연산에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["날짜 - 날짜의 결과는 두 날짜 사이의 일수다", "날짜 + 숫자의 결과는 날짜다", "날짜 + 날짜의 결과는 두 날짜를 합친 날짜다", "날짜 - 숫자의 결과는 그 일수만큼 앞의 날짜다"],
+                  "answer": 3,
+                  "explain": "날짜끼리 더하는 연산은 허용되지 않는다(오류). 날짜끼리는 빼서 일수 차이를 구하는 것만 된다."
+                }
+              ]
+            },
+            {
+              "id": "func-convert",
+              "title": "변환 함수와 암시적 형변환",
+              "summary": "데이터 타입을 바꾸는 방법은 함수로 직접 바꾸는 명시적 변환과, DBMS가 알아서 바꾸는 암시적 변환 두 가지다.",
+              "desc": "숫자 2024와 문자 '2024'는 다른 값이다. 타입이 다른 값끼리 비교하거나 계산하려면 한쪽을 다른 타입으로 바꿔야 한다.\n명시적 변환(직접 바꾸기, 오라클 기준)\n· TO_CHAR(숫자 또는 날짜, '형식'): 문자로. TO_CHAR(SYSDATE, 'YYYY-MM-DD'), TO_CHAR(1234567, '999,999,999')\n· TO_NUMBER(문자): 숫자로. TO_NUMBER('100') + 1 = 101\n· TO_DATE(문자, '형식'): 날짜로. TO_DATE('2024-03-01', 'YYYY-MM-DD')\n· CAST(값 AS 타입): 표준 문법. CAST('100' AS NUMBER)\n암시적 변환(DBMS가 알아서 바꾸기)\n· '10' + 5 처럼 쓰면 DBMS가 '10'을 숫자로 바꿔 15를 낸다.\n· 편해 보이지만 의도와 다르게 바뀌거나, 인덱스를 쓰지 못해 조회가 느려질 수 있어서 명시적 변환을 권한다.\n예시 SQL은 SQLite의 CAST로 입사일 문자열에서 연도를 꺼내 숫자로 바꾼 뒤 계산한다.",
+              "analogy": "환전과 같다. 은행 창구에서 '원화를 달러로 바꿔 주세요'라고 직접 요청하는 것이 명시적 변환이고, 해외 가게에서 카드사가 알아서 원화로 바꿔 결제해 주는 것이 암시적 변환이다. 자동 환전은 편하지만 결과를 예상하기 어렵다.",
+              "sql": "SELECT 이름, 입사일,\n       CAST(SUBSTR(입사일, 1, 4) AS INTEGER) AS 입사연도,\n       2026 - CAST(SUBSTR(입사일, 1, 4) AS INTEGER) AS 근속연차,\n       '10' + 5 AS 암시적변환,\n       typeof('10' + 5) AS 결과타입\nFROM 사원\nWHERE 부서번호 = 30;",
+              "pitfalls": [
+                "함수 이름의 TO 뒤가 '결과 타입'이다. 문자로 바꾸는 것은 TO_CHAR(날짜와 숫자 모두), 숫자로는 TO_NUMBER, 날짜로는 TO_DATE다.",
+                "숫자와 문자를 비교하면 오라클은 문자 쪽을 숫자로 바꿔 비교한다. 그래서 '2' > 10은 2 > 10으로 보아 거짓이다. 숫자로 바꿀 수 없는 문자('A')가 섞이면 오류가 난다.",
+                "문자끼리 비교하면 숫자처럼 보여도 사전 순이다. '2' > '10'은 첫 글자 '2'가 '1'보다 커서 참이다."
+              ],
+              "oracle": [
+                "함수: 오라클의 TO_CHAR, TO_NUMBER, TO_DATE는 SQLite에 없다. SQLite는 CAST(값 AS INTEGER / REAL / TEXT)와 날짜용 strftime()을 쓴다.",
+                "숫자와 문자 비교: 오라클에서 '2' > 10은 '2'를 숫자로 바꿔 거짓이다. SQLite는 타입이 다르면 '문자는 언제나 숫자보다 크다'는 규칙으로 비교해서 참이 나온다. 같은 식이 정반대 결과를 낸다."
+              ],
+              "exam": "TO_CHAR / TO_NUMBER / TO_DATE 중 알맞은 함수를 고르는 문제, 암시적 형변환이 일어나는 상황과 그 단점을 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 문자열 '2024-03-01'을 날짜 타입으로 바꾸는 함수는?",
+                  "choices": ["TO_CHAR", "TO_NUMBER", "TO_DATE", "CONCAT"],
+                  "answer": 3,
+                  "explain": "TO 뒤의 이름이 결과 타입이다. 날짜로 바꾸려면 TO_DATE('2024-03-01', 'YYYY-MM-DD')처럼 쓴다. TO_CHAR는 반대로 날짜나 숫자를 문자로 바꾼다."
+                },
+                {
+                  "q": "암시적 형변환에 대한 설명으로 옳은 것은?",
+                  "choices": ["사용자가 CAST나 TO_ 함수로 직접 타입을 바꾸는 것이다", "DBMS가 필요할 때 알아서 타입을 바꾸는 것이다", "오라클은 암시적 형변환을 전혀 하지 않는다", "암시적 형변환을 쓰면 언제나 조회가 빨라진다"],
+                  "answer": 2,
+                  "explain": "직접 바꾸는 것은 명시적 변환이다. 오라클은 '10' + 5 같은 식에서 암시적 변환을 한다. 다만 의도와 다른 결과나 인덱스를 못 쓰는 성능 문제가 생길 수 있어서 명시적 변환을 권한다."
+                }
+              ]
+            },
+            {
+              "id": "func-null",
+              "title": "NULL 관련 함수",
+              "summary": "NVL, NVL2, NULLIF, COALESCE로 NULL을 다른 값으로 바꾸거나, 특정 값을 NULL로 만든다.",
+              "desc": "SELECT 기본 단원에서 NULL이 섞인 계산은 결과도 NULL이 된다는 것을 보았다(급여 + 커미션). 그래서 NULL을 다른 값으로 바꿔 주는 함수가 필요하다.\n· NVL(값, 대신할값): 값이 NULL이면 대신할값, 아니면 값 그대로. NVL(커미션, 0)\n· NVL2(값, NULL이아닐때, NULL일때): 값이 NULL인지 아닌지에 따라 둘 중 하나를 고른다. NVL2(커미션, '있음', '없음')\n· COALESCE(값1, 값2, 값3, ...): 왼쪽부터 보며 처음으로 NULL이 아닌 값을 돌려준다. 모두 NULL이면 NULL.\n· NULLIF(값1, 값2): 두 값이 같으면 NULL, 다르면 값1. 0을 NULL로 바꿔 '0으로 나누기'를 피할 때 쓴다.\n예시 SQL은 SQLite에서 NVL 대신 IFNULL을, NVL2 대신 CASE를 쓴다(CASE는 다음 카드).",
+              "analogy": "NVL은 '빈칸이면 0으로 적는다'는 규칙이다. COALESCE는 비상 연락망이다. 1순위가 전화를 안 받으면 2순위, 2순위도 안 받으면 3순위에게 건다. NULLIF는 '두 사람의 답이 같으면 무효 처리'다.",
+              "sql": "SELECT 이름, 급여, 커미션,\n       급여 + IFNULL(커미션, 0) AS 총액,\n       COALESCE(커미션, 부서번호, -1) AS 처음값,\n       NULLIF(커미션, 0) AS 영을NULL로,\n       CASE WHEN 커미션 IS NULL THEN '없음' ELSE '있음' END AS NVL2대신\nFROM 사원\nWHERE 부서번호 IN (10, 30) OR 부서번호 IS NULL;",
+              "pitfalls": [
+                "NVL2의 인자 순서: 두 번째 인자가 'NULL이 아닐 때', 세 번째가 'NULL일 때'다. 거꾸로 기억하기 쉽다.",
+                "NULLIF(값1, 값2)는 '같으면 NULL'이다. NULLIF(5, 5) = NULL, NULLIF(5, 3) = 5.",
+                "NVL(커미션, 0)과 COALESCE(커미션, 0)은 같은 결과를 낸다. COALESCE는 인자를 여러 개 받을 수 있는 표준 함수다.",
+                "NVL의 두 인자는 타입이 맞아야 한다. 오라클에서 NVL(커미션, '없음')처럼 숫자 열에 문자를 주면 '없음'을 숫자로 바꾸지 못해 오류가 난다."
+              ],
+              "oracle": [
+                "SQLite에 없는 함수: NVL과 NVL2가 없다. NVL 대신 IFNULL(값, 대신할값) 또는 COALESCE를, NVL2 대신 CASE WHEN 값 IS NULL THEN ... ELSE ... END를 쓴다. NULLIF와 COALESCE는 둘 다 있다."
+              ],
+              "exam": "NVL, NVL2, NULLIF, COALESCE의 결과를 계산하는 문제가 단골이다. NVL2의 인자 순서, 같을 때 NULL을 돌려주는 NULLIF, '처음 만나는 NULL 아닌 값'을 돌려주는 COALESCE를 묻는다.",
+              "quiz": [
+                {
+                  "q": "결과가 NULL인 것은?",
+                  "choices": ["NVL(NULL, 0)", "NULLIF(10, 10)", "COALESCE(NULL, 3, NULL)", "NVL2(NULL, 1, 2)"],
+                  "answer": 2,
+                  "explain": "NULLIF는 두 값이 같으면 NULL이다. NVL(NULL, 0)은 0, COALESCE는 처음 만나는 NULL 아닌 값인 3, NVL2(NULL, 1, 2)는 첫 인자가 NULL이므로 세 번째 인자인 2다."
+                },
+                {
+                  "q": "커미션이 NULL인 행에서 NVL2(커미션, 커미션 * 2, 100)의 결과는?",
+                  "choices": ["NULL", "0", "100", "커미션 * 2의 값"],
+                  "answer": 3,
+                  "explain": "NVL2(값, A, B)는 값이 NULL이 아니면 A, NULL이면 B다. 커미션이 NULL이므로 100이다."
+                }
+              ]
+            },
+            {
+              "id": "func-case",
+              "title": "CASE와 DECODE",
+              "summary": "CASE는 조건에 따라 다른 값을 돌려주는 SQL의 '만약 ~라면'이다. 오라클의 DECODE는 '같으면 바꾸기'만 하는 짧은 버전이다.",
+              "desc": "검색형 CASE: 조건을 위에서부터 차례로 검사해서 처음으로 참이 된 THEN의 값을 돌려준다.\nCASE WHEN 급여 >= 6000 THEN '고액'\n     WHEN 급여 >= 4000 THEN '중간'\n     ELSE '기본' END\n단순형 CASE: 값 하나를 정해 두고 그 값과 '같은지'만 비교한다.\nCASE 부서번호 WHEN 10 THEN '경영지원' WHEN 20 THEN '개발' ELSE '기타' END\nELSE를 빼면, 맞는 조건이 하나도 없을 때 NULL이 나온다.\n오라클의 DECODE(값, 비교1, 결과1, 비교2, 결과2, ..., 기본값)는 단순형 CASE와 같은 일을 한다. 마지막에 짝이 없는 인자가 기본값(ELSE)이다.\nCASE는 SELECT뿐 아니라 WHERE, ORDER BY 안에서도 쓸 수 있다.",
+              "analogy": "놀이공원 요금표와 같다. '65세 이상이면 무료, 아니면서 13세 이상이면 성인 요금, 그 밖에는 어린이 요금'처럼 위에서부터 차례로 따져서 처음 맞는 요금 하나만 적용한다.",
+              "sql": "SELECT 이름, 급여,\n       CASE WHEN 급여 >= 6000 THEN '고액'\n            WHEN 급여 >= 4000 THEN '중간'\n            ELSE '기본'\n       END AS 급여구간,\n       CASE 부서번호 WHEN 10 THEN '경영지원'\n                     WHEN 20 THEN '개발'\n       END AS 부서구분\nFROM 사원;",
+              "pitfalls": [
+                "조건은 위에서부터 검사하고 처음 맞는 곳에서 멈춘다. 급여 9000은 '>= 4000'에도 맞지만 먼저 나온 '>= 6000'에서 '고액'으로 정해진다. 조건 순서를 바꾸면 결과가 달라진다.",
+                "ELSE가 없으면 맞는 조건이 없는 행은 NULL이다. 예시 결과에서 30번 부서 사원의 부서구분이 NULL인 이유다.",
+                "단순형 CASE로는 NULL을 찾을 수 없다. CASE 부서번호 WHEN NULL THEN ... 은 '= NULL' 비교라서 절대 참이 되지 않는다. NULL은 검색형 CASE WHEN 부서번호 IS NULL로 검사한다.",
+                "CASE는 END로 끝난다. END를 빼먹으면 문법 오류다."
+              ],
+              "oracle": [
+                "DECODE: 오라클 전용 함수라 SQLite에는 없다. 연습창에서는 단순형 CASE로 바꿔 쓴다. DECODE(부서번호, 10, '경영지원', 20, '개발', '기타')는 CASE 부서번호 WHEN 10 THEN '경영지원' WHEN 20 THEN '개발' ELSE '기타' END와 같다.",
+                "DECODE와 NULL: DECODE는 예외적으로 NULL끼리를 같다고 보아 DECODE(부서번호, NULL, '미배정', '배정')이 동작한다. 단순형 CASE는 그렇지 않다."
+              ],
+              "exam": "CASE의 결과를 행마다 따져서 고르는 문제, CASE와 같은 결과를 내는 DECODE 식을 고르는 문제, ELSE가 없을 때 NULL이 나오는 점을 묻는다.",
+              "quiz": [
+                {
+                  "q": "급여가 5000인 행에서 CASE WHEN 급여 > 3000 THEN 'A' WHEN 급여 > 4000 THEN 'B' ELSE 'C' END 의 결과는?",
+                  "choices": ["'A'", "'B'", "'C'", "NULL"],
+                  "answer": 1,
+                  "explain": "위에서부터 검사해서 처음 참이 된 조건의 값을 돌려준다. 5000 > 3000이 먼저 참이므로 'A'다. 두 번째 조건도 참이지만 검사하지 않는다."
+                },
+                {
+                  "q": "DECODE(직급, '부장', 1, '과장', 2, 3)과 같은 결과를 내는 식은?",
+                  "choices": ["CASE 직급 WHEN '부장' THEN 1 WHEN '과장' THEN 2 ELSE 3 END", "CASE 직급 WHEN '부장' THEN 1 WHEN '과장' THEN 2 END", "CASE WHEN 직급 = 1 THEN '부장' WHEN 직급 = 2 THEN '과장' ELSE 3 END", "NVL2(직급, 1, 2)"],
+                  "answer": 1,
+                  "explain": "DECODE의 마지막 짝 없는 인자(3)가 기본값, 즉 ELSE다. 두 번째 보기는 ELSE가 없어서 부장·과장이 아닌 행이 NULL이 된다."
+                }
+              ]
+            }
+          ]
+        },
         {
           "group": "SQL 기본",
           "name": "GROUP BY·HAVING 절",

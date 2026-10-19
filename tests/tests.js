@@ -79,6 +79,7 @@ test('cards.json: 공식 출제 범위 2과목·30개 세부항목 구조', asyn
 const DONE_UNITS = [
   '관계형 데이터베이스 개요',
   'SELECT 기본과 WHERE 조건',
+  '함수',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -235,6 +236,40 @@ test('카드에 적은 SQLite 쪽 동작이 연습창 엔진(sql.js)에서 사�
     let failed = false;
     try { db.exec(bad); } catch { failed = true; }
     assert(failed, `오류가 나야 함: ${bad}`);
+  }
+  db.close();
+});
+
+async function seededDb() {
+  const SQL = await initSqlJs({ locateFile: (f) => `../vendor/${f}` });
+  const db = new SQL.Database();
+  db.exec(SEED_SQL);
+  return {
+    db,
+    one: (sql) => db.exec(sql)[0].values[0],
+    rows: (sql) => db.exec(sql)[0]?.values || [],
+    fails: (sql) => { try { db.exec(sql); return false; } catch { return true; } },
+  };
+}
+
+test('함수 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, fails } = await seededDb();
+  // 문제 정답 중 SQLite로도 계산되는 것
+  eq(one("SELECT UPPER(SUBSTR('database', 5, 4))"), ['BASE']);
+  eq(one("SELECT SUBSTR('SQLDEVELOPER', -5, 3)"), ['LOP']);
+  eq(one("SELECT LENGTH(RTRIM('SQLD  ')) + INSTR('SQLD', 'L')"), [7]);
+  eq(one("SELECT LENGTH('SQL 개발'), SUBSTR('SQLD', 2, 2), LTRIM('xxSQLxx', 'x')"), [6, 'QL', 'SQLxx']);
+  eq(one('SELECT CEIL(-2.5), FLOOR(-2.5), ROUND(-2.4), CEIL(-3.1), FLOOR(-3.1), CAST(-3.7 AS INTEGER)'), [-2, -3, -2, -3, -4, -3]);
+  eq(one('SELECT NULLIF(10, 10), COALESCE(NULL, 3, NULL), IFNULL(NULL, 0), NULLIF(5, 3)'), [null, 3, 0, 5]);
+  eq(one("SELECT CASE WHEN 5000 > 3000 THEN 'A' WHEN 5000 > 4000 THEN 'B' ELSE 'C' END"), ['A']);
+  // 오라클과 다르다고 적은 SQLite 동작
+  eq(one('SELECT ROUND(1234.567, -2), 7 / 0'), [1235, null], '음수 자리 무시, 0으로 나누기');
+  eq(one("SELECT date('2024-01-31', '+1 month'), '2' > 10, '2' > '10', typeof('10' + 5)"), ['2024-03-02', 1, 1, 'integer']);
+  eq(one("SELECT CONCAT('a', 'b', 'c')"), ['abc'], 'SQLite CONCAT은 여러 인자');
+  for (const f of ["INITCAP('a')", "LPAD('7', 3, '0')", "RPAD('7', 3, '0')", 'TRUNC(3.7)', 'MOD(7, 3)', 'NVL(NULL, 0)',
+    'NVL2(1, 2, 3)', "DECODE(1, 1, 'a', 'b')", "TO_CHAR(1)", "TO_NUMBER('1')", "TO_DATE('2024-01-01', 'YYYY-MM-DD')",
+    "ADD_MONTHS('2024-01-31', 1)", 'SYSDATE', "TRIM(LEADING 'x' FROM 'xxa')"]) {
+    assert(fails(`SELECT ${f}`), `SQLite에서 안 돼야 함: ${f}`);
   }
   db.close();
 });
