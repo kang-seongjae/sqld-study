@@ -1700,7 +1700,191 @@
             }
           ]
         },
-        { "group": "SQL 활용", "name": "집합 연산자", "cards": [] },
+        {
+          "group": "SQL 활용",
+          "name": "집합 연산자",
+          "cards": [
+            {
+              "id": "set-union",
+              "title": "UNION과 UNION ALL",
+              "summary": "UNION은 두 SELECT 결과를 위아래로 합치면서 중복 행을 없애고, UNION ALL은 중복까지 그대로 합친다.",
+              "desc": "조인은 두 테이블을 옆으로(열을 늘려) 이어 붙인다. 집합 연산자는 두 SELECT의 결과를 위아래로(행을 늘려) 이어 붙인다. 관계형 데이터베이스 개요 단원에서 본 합집합·교집합·차집합을 SQL로 쓰는 방법이다.\nUNION: 두 결과를 합치고, 완전히 같은 행은 하나만 남긴다(합집합).\nUNION ALL: 두 결과를 합치되 중복을 없애지 않는다. 행 수는 언제나 두 결과의 행 수를 더한 것이다.\n예시 SQL은 '20번 부서 사원'과 '과장'을 합친다. 20번 부서는 4명(이부장, 최과장, 강대리, 윤사원), 과장은 2명(최과장, 정과장)이다. 최과장이 양쪽에 다 있으므로 UNION은 5행, UNION ALL은 6행이다.\nUNION은 중복을 찾으려고 결과를 비교하는 일을 더 하므로, 중복이 없다고 확신하거나 중복도 필요할 때는 UNION ALL이 더 빠르다.",
+              "analogy": "두 반의 동아리 신청서를 한 묶음으로 합치는 것과 같다. UNION은 두 반에 모두 낸 학생의 신청서를 한 장만 남기고, UNION ALL은 받은 신청서를 한 장도 버리지 않고 그대로 쌓는다.",
+              "sql": "SELECT 이름, 직급 FROM 사원 WHERE 부서번호 = 20\nUNION\nSELECT 이름, 직급 FROM 사원 WHERE 직급 = '과장';\n\nSELECT 이름, 직급 FROM 사원 WHERE 부서번호 = 20\nUNION ALL\nSELECT 이름, 직급 FROM 사원 WHERE 직급 = '과장';",
+              "pitfalls": [
+                "UNION의 중복 제거는 행 전체를 비교한다. SELECT에 이름만 있으면 동명이인도 한 명으로 합쳐지므로, 사람을 구별하려면 사원번호 같은 열을 함께 고른다.",
+                "UNION은 한쪽 결과 안에서 이미 겹쳐 있던 행도 하나로 합친다. 두 결과 사이의 중복만 없애는 것이 아니다.",
+                "UNION 결과가 정렬된 것처럼 보일 때가 있지만 순서는 보장되지 않는다. 순서가 필요하면 맨 끝에 ORDER BY를 쓴다.",
+                "같은 테이블에서 조건만 다른 두 SELECT를 UNION하면 WHERE에 OR를 쓴 것과 결과가 같을 때가 많다. 예시의 UNION은 WHERE 부서번호 = 20 OR 직급 = '과장'과 같은 5명이다."
+              ],
+              "exam": "UNION과 UNION ALL의 결과 행 수를 작은 표에서 계산하는 문제가 매우 자주 나온다. 중복된 행이 몇 개인지 정확히 세는 것이 핵심이다.",
+              "quiz": [
+                {
+                  "q": "A의 결과가 (1), (2), (2)이고 B의 결과가 (2), (3)일 때, A UNION ALL B 와 A UNION B 의 결과 행 수는 각각?",
+                  "choices": ["5, 3", "5, 4", "3, 3", "4, 3"],
+                  "answer": 1,
+                  "explain": "UNION ALL은 행 수를 그대로 더해 3 + 2 = 5행이다. UNION은 중복을 모두 없애 1, 2, 3 세 행만 남는다. A 안에서 이미 겹친 (2)도 하나로 합쳐진다."
+                },
+                {
+                  "q": "UNION ALL에 대한 설명으로 옳은 것은?",
+                  "choices": ["두 결과에 모두 있는 행만 돌려준다", "중복된 행을 하나만 남긴다", "중복을 없애지 않아 결과 행 수가 두 결과의 행 수를 더한 것과 같다", "결과를 항상 첫 번째 열 기준으로 정렬한다"],
+                  "answer": 3,
+                  "explain": "UNION ALL은 두 결과를 그대로 이어 붙인다. 중복 제거도 정렬도 하지 않는다. 양쪽에 모두 있는 행만 남기는 것은 INTERSECT다."
+                }
+              ]
+            },
+            {
+              "id": "set-rules",
+              "title": "집합 연산자를 쓰는 규칙",
+              "summary": "합치는 SELECT들은 열 개수가 같고 같은 위치의 열끼리 타입이 맞아야 한다. 결과 열 이름은 첫 번째 SELECT를 따르고, ORDER BY는 맨 끝에 한 번만 쓴다.",
+              "desc": "집합 연산자는 결과를 위아래로 쌓기 때문에 다음 규칙을 지켜야 한다.\n① 열 개수가 같아야 한다. 위가 2열, 아래가 1열이면 오류다.\n② 같은 위치의 열끼리 데이터 타입이 맞아야 한다. 첫 번째 열이 위는 숫자, 아래는 문자이면 오라클에서는 오류다. 열 이름은 달라도 된다. 위치가 같으면 같은 열로 쌓인다.\n③ 결과의 열 이름(제목)은 첫 번째 SELECT의 열 이름이나 별칭을 따른다.\n④ ORDER BY는 마지막 SELECT 뒤에 한 번만 쓰고, 합쳐진 전체 결과를 정렬한다. 정렬 기준에는 첫 번째 SELECT의 열 이름·별칭이나 위치 번호를 쓴다.\n예시 SQL은 10번 부서 사원과 30번 부서 사원을 합친 뒤 급여가 높은 순으로 정렬한다. 결과 제목은 첫 SELECT의 별칭인 '사람'이다.",
+              "analogy": "엑셀 표 두 개를 위아래로 붙이는 것과 같다. 열 수가 다르면 붙일 수 없고, 같은 칸에 날짜와 금액이 섞이면 표가 엉망이 된다. 붙인 표의 머리글은 위쪽 표의 머리글을 쓴다.",
+              "sql": "SELECT 이름 AS 사람, 급여 FROM 사원 WHERE 부서번호 = 10\nUNION\nSELECT 이름, 급여 FROM 사원 WHERE 부서번호 = 30\nORDER BY 급여 DESC;",
+              "pitfalls": [
+                "중간 SELECT 뒤에 ORDER BY를 쓰면 오류다. ORDER BY는 맨 마지막에만 쓴다.",
+                "열 이름이 달라도 위치만 맞으면 합쳐진다. SELECT 이름 ... UNION SELECT 부서명 ... 은 사람 이름과 부서명이 한 열에 섞여 나온다. 문법은 맞지만 의미가 맞는지는 내가 확인해야 한다.",
+                "ORDER BY에는 첫 번째 SELECT의 열 이름·별칭이나 위치 번호(ORDER BY 2)를 쓴다. 두 번째 SELECT에서만 붙인 별칭은 쓰지 않는 것이 안전하다."
+              ],
+              "oracle": [
+                "열 타입이 다를 때: 오라클은 같은 위치의 열 타입이 다르면(예: 숫자와 문자) '대응하는 식은 같은 데이터 유형이어야 한다'는 오류를 낸다. SQLite는 SELECT 1 UNION SELECT '가' 도 그대로 실행해 한 열에 숫자와 문자가 섞여 나온다.",
+                "ORDER BY의 별칭: 오라클은 집합 연산 뒤 ORDER BY에 첫 번째 SELECT의 이름·별칭이나 위치 번호만 쓸 수 있다. SQLite는 두 번째 SELECT에서 붙인 별칭도 받아 준다."
+              ],
+              "exam": "열 개수가 맞지 않거나 ORDER BY 위치가 틀린 SQL을 고르는 문제, 집합 연산 결과의 열 이름이 무엇인지 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "퇴직사원은 사원과 같은 구조의 테이블이다. 오류가 나는 SQL은?",
+                  "choices": ["SELECT 이름, 급여 FROM 사원 UNION SELECT 이름, 급여 FROM 퇴직사원 ORDER BY 2;", "SELECT 이름 AS 성명 FROM 사원 UNION ALL SELECT 이름 FROM 퇴직사원;", "SELECT 사원번호, 이름 FROM 사원 INTERSECT SELECT 사원번호, 이름 FROM 퇴직사원;", "SELECT 이름 FROM 사원 ORDER BY 이름 UNION SELECT 이름 FROM 퇴직사원;"],
+                  "answer": 4,
+                  "explain": "ORDER BY는 마지막 SELECT 뒤에 한 번만 쓸 수 있다. 첫 번째 SELECT 뒤에 쓰면 오류다. 위치 번호로 정렬하는 것(1번)은 괜찮다."
+                },
+                {
+                  "q": "SELECT 이름 AS 사람 FROM 사원 UNION SELECT 부서명 AS 부서 FROM 부서; 의 결과 열 이름은?",
+                  "choices": ["이름", "사람", "부서", "사람과 부서 두 열"],
+                  "answer": 2,
+                  "explain": "집합 연산 결과의 열 이름은 첫 번째 SELECT를 따른다. 별칭 '사람'이 결과 제목이 되고, 결과는 한 열이다."
+                }
+              ]
+            },
+            {
+              "id": "set-intersect",
+              "title": "INTERSECT: 양쪽에 모두 있는 행",
+              "summary": "INTERSECT는 두 SELECT 결과에 모두 있는 행만 남긴다(교집합). 결과의 중복은 없앤다.",
+              "desc": "INTERSECT는 위아래 결과를 맞대어, 양쪽에 똑같이 있는 행만 돌려준다.\n'20번 부서 사원' INTERSECT '과장'은 두 조건을 모두 만족하는 최과장 한 명이다. 같은 테이블이라면 WHERE 부서번호 = 20 AND 직급 = '과장'과 같은 결과다.\nINTERSECT는 서로 다른 테이블의 값을 맞춰 볼 때 특히 쓸모 있다. 예시의 두 번째 SQL은 사원 테이블의 부서번호와 부서 테이블의 부서번호를 맞춰 '사원이 실제로 있는 부서번호'(10, 20, 30)를 찾는다.\n세 번째 SQL은 '20번 부서와 30번 부서에 모두 있는 직급'을 찾는다. 예제 데이터에서는 부장, 과장, 대리, 사원 네 직급이 두 부서에 다 있다.\nINTERSECT도 UNION처럼 결과의 중복을 없앤다.",
+              "analogy": "두 친구의 휴대폰 연락처를 맞대어 '둘 다 아는 사람'만 고르는 것과 같다. 한쪽에만 있는 이름은 빠진다.",
+              "sql": "SELECT 이름 FROM 사원 WHERE 부서번호 = 20\nINTERSECT\nSELECT 이름 FROM 사원 WHERE 직급 = '과장';\n\nSELECT 부서번호 FROM 사원\nINTERSECT\nSELECT 부서번호 FROM 부서;\n\nSELECT 직급 FROM 사원 WHERE 부서번호 = 20\nINTERSECT\nSELECT 직급 FROM 사원 WHERE 부서번호 = 30;",
+              "pitfalls": [
+                "INTERSECT는 SELECT한 열 전체가 같아야 같은 행으로 본다. 이름과 직급을 함께 고르면 이름이 같아도 직급이 다르면 다른 행이다.",
+                "INTERSECT는 NULL끼리를 같은 값으로 본다. 그래서 일반 조건의 = 로는 찾을 수 없는 NULL끼리의 짝도 결과에 남는다(이 단원 마지막 카드).",
+                "A INTERSECT B와 B INTERSECT A는 결과가 같다. 하지만 차집합(다음 카드)은 순서를 바꾸면 결과가 달라진다."
+              ],
+              "exam": "두 결과 집합을 주고 INTERSECT 결과 행을 고르는 문제, INTERSECT와 같은 결과를 내는 WHERE 조건을 고르는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "A의 결과가 (1), (2), (3), (3)이고 B의 결과가 (3), (4), (2)일 때 A INTERSECT B 의 결과는?",
+                  "choices": ["(2), (3), (3)", "(1), (4)", "(2), (3)", "(1), (2), (3), (4)"],
+                  "answer": 3,
+                  "explain": "양쪽에 모두 있는 값은 2와 3이다. INTERSECT는 중복을 없애므로 3은 한 번만 나온다."
+                },
+                {
+                  "q": "같은 사원 테이블에서 SELECT 사원번호 FROM 사원 WHERE 부서번호 = 20 INTERSECT SELECT 사원번호 FROM 사원 WHERE 급여 >= 5000 과 같은 결과를 내는 조건은?",
+                  "choices": ["WHERE 부서번호 = 20 OR 급여 >= 5000", "WHERE 부서번호 = 20 AND 급여 >= 5000", "WHERE 부서번호 = 20 AND NOT 급여 >= 5000", "WHERE NOT 부서번호 = 20"],
+                  "answer": 2,
+                  "explain": "두 조건을 모두 만족하는 사원만 남으므로 AND와 같다(예제 테이블에서는 이부장, 최과장). OR는 UNION과 같은 결과를 낸다."
+                }
+              ]
+            },
+            {
+              "id": "set-minus",
+              "title": "차집합: MINUS(오라클)와 EXCEPT",
+              "summary": "차집합은 첫 번째 결과에서 두 번째 결과에도 있는 행을 뺀다. 오라클은 MINUS, 표준 SQL과 SQLite는 EXCEPT라고 쓴다.",
+              "desc": "'20번 부서 사원 중 과장이 아닌 사람'처럼, 한 결과에서 다른 결과를 빼고 싶을 때 차집합을 쓴다.\n오라클: SELECT ... MINUS SELECT ...\n표준 SQL·SQLite: SELECT ... EXCEPT SELECT ...\n이름만 다르고 하는 일은 같다. 예시 SQL은 연습창(SQLite)에서 실행해야 해서 EXCEPT로 썼다. 시험 보기에는 MINUS가 나온다.\n20번 부서 4명(이부장, 최과장, 강대리, 윤사원)에서 과장(최과장, 정과장)을 빼면 이부장, 강대리, 윤사원 3명이 남는다. 두 번째 결과에만 있는 정과장은 아무 영향이 없다.\n차집합은 순서가 중요하다. A MINUS B와 B MINUS A는 다르다. 예시의 두 번째 SQL은 부서 테이블의 부서번호에서 사원 테이블의 부서번호를 빼서 '사원이 없는 부서'(40)를 찾는다. 서브쿼리 단원의 NOT EXISTS와 같은 결과다.\n차집합도 결과의 중복을 없앤다.",
+              "analogy": "장보기 목록에서 냉장고에 이미 있는 것을 지우는 것과 같다. 목록(첫 번째)에서 냉장고(두 번째)에 있는 것만 지운다. 냉장고에만 있는 물건은 목록과 상관없다.",
+              "sql": "SELECT 이름 FROM 사원 WHERE 부서번호 = 20\nEXCEPT\nSELECT 이름 FROM 사원 WHERE 직급 = '과장';\n\nSELECT 부서번호 FROM 부서\nEXCEPT\nSELECT 부서번호 FROM 사원;",
+              "pitfalls": [
+                "A MINUS B와 B MINUS A는 결과가 다르다. 부서 EXCEPT 사원은 40이지만, 사원 EXCEPT 부서는 NULL(부서번호가 없는 오인턴)이다.",
+                "차집합에서는 NULL끼리를 같은 값으로 본다. 그래서 사원 쪽에 NULL이 섞여 있어도 부서 EXCEPT 사원은 40을 제대로 찾는다. 같은 일을 NOT IN으로 하면 0행이 되는 것(서브쿼리 단원)과 비교해 보자.",
+                "같은 테이블이라면 A MINUS B는 WHERE A조건 AND NOT B조건과 같은 결과일 때가 많다. 다만 B조건이 NULL 때문에 UNKNOWN이 되는 행은 NOT을 붙여도 빠지므로 결과가 달라질 수 있다."
+              ],
+              "oracle": [
+                "MINUS와 EXCEPT: 오라클은 차집합을 MINUS로 쓴다(21c부터는 EXCEPT도 지원). SQLite에는 MINUS가 없어서 문법 오류이고, EXCEPT로 써야 한다."
+              ],
+              "exam": "MINUS의 결과 행을 고르는 문제가 자주 나온다. 순서를 바꾼 MINUS의 결과가 달라지는지, NOT IN·NOT EXISTS와 같은 결과를 내는지도 묻는다.",
+              "quiz": [
+                {
+                  "q": "A의 결과가 (1), (2), (3)이고 B의 결과가 (2), (4)일 때, 오라클에서 A MINUS B 의 결과는?",
+                  "choices": ["(4)", "(1), (3)", "(2)", "(1), (3), (4)"],
+                  "answer": 2,
+                  "explain": "A에서 B에도 있는 2만 빠진다. B에만 있는 4는 결과에 아무 영향이 없다."
+                },
+                {
+                  "q": "오라클의 SELECT 부서번호 FROM 부서 MINUS SELECT 부서번호 FROM 사원; 과 같은 일을 SQLite에서 하려면?",
+                  "choices": ["SELECT 부서번호 FROM 사원 EXCEPT SELECT 부서번호 FROM 부서;", "SELECT 부서번호 FROM 부서 INTERSECT SELECT 부서번호 FROM 사원;", "SELECT 부서번호 FROM 부서 UNION SELECT 부서번호 FROM 사원;", "SELECT 부서번호 FROM 부서 EXCEPT SELECT 부서번호 FROM 사원;"],
+                  "answer": 4,
+                  "explain": "SQLite는 MINUS 대신 EXCEPT를 쓰고, 순서는 그대로 둔다. 순서를 바꾸면(1번) 사원 쪽에서 부서 쪽을 빼는 전혀 다른 결과가 된다."
+                }
+              ]
+            },
+            {
+              "id": "set-precedence",
+              "title": "집합 연산자를 여러 개 섞을 때",
+              "summary": "오라클은 집합 연산자를 위에서부터 차례로 계산한다. 원하는 순서가 다르면 괄호나 인라인 뷰로 묶는다.",
+              "desc": "집합 연산자로 세 개 이상의 SELECT를 이어 쓸 수 있다.\nSELECT ... UNION SELECT ... MINUS SELECT ...\n오라클은 UNION, UNION ALL, INTERSECT, MINUS 사이에 우선순위를 두지 않고, 위에서 아래로(왼쪽에서 오른쪽으로) 하나씩 계산한다. 위 문장은 (앞 두 SELECT의 UNION 결과) MINUS (세 번째 SELECT)다.\n예시 SQL로 확인해 보자. SELECT 1 UNION SELECT 2 INTERSECT SELECT 2 를 위에서부터 계산하면 {1, 2}와 {2}의 교집합이라 2 한 행이다. 만약 INTERSECT를 먼저 계산했다면 {1} ∪ {2}로 1과 2 두 행이 나왔을 것이다.\n표준 SQL과 일부 DBMS(예: SQL Server)는 INTERSECT를 UNION·EXCEPT보다 먼저 계산한다. DBMS마다 다를 수 있으니, 계산 순서가 중요하면 괄호로 분명히 묶어 두는 것이 안전하다.\n괄호를 쓸 수 없는 SQLite에서는 먼저 계산할 부분을 FROM 절의 인라인 뷰(서브쿼리 단원)로 감싼다. 예시의 두 번째 SQL이다.",
+              "analogy": "계산기에 '2 + 3 × 4'를 눌렀을 때, 누른 차례대로 계산하는 계산기(20)와 곱셈을 먼저 하는 계산기(14)의 답이 다른 것과 같다. 오라클의 집합 연산자는 '누른 차례대로 계산하는 계산기'다.",
+              "sql": "SELECT 1 AS 값\nUNION\nSELECT 2\nINTERSECT\nSELECT 2;\n\nSELECT 1 AS 값\nUNION\nSELECT * FROM (SELECT 2 INTERSECT SELECT 2);",
+              "pitfalls": [
+                "UNION과 UNION ALL을 섞으면 위치에 따라 중복이 남기도 하고 사라지기도 한다. 위에서부터 한 단계씩 중간 결과를 적어 가며 풀어야 한다.",
+                "UNION ALL 뒤에 UNION이 오면, 그 UNION이 앞에서 쌓인 중복까지 모두 없앤다. 1 UNION ALL 2 UNION ALL 2 UNION 3 의 결과는 1, 2, 3 세 행이다.",
+                "ORDER BY는 여러 집합 연산자를 다 이어 쓴 뒤 맨 끝에 한 번만 쓴다. 이어 쓴 SELECT 모두가 열 개수와 타입 규칙(이 단원 두 번째 카드)을 지켜야 한다."
+              ],
+              "oracle": [
+                "괄호로 묶기: 오라클은 SELECT ... UNION (SELECT ... INTERSECT SELECT ...)처럼 괄호로 계산 순서를 바꿀 수 있다. SQLite는 집합 연산 안에 괄호를 쓰면 문법 오류라서, 먼저 계산할 부분을 FROM 절의 인라인 뷰로 감싼다."
+              ],
+              "exam": "UNION, UNION ALL, MINUS, INTERSECT가 섞인 SQL과 작은 표를 주고 최종 결과 행 수를 묻는 문제가 나온다. 오라클 기준으로 위에서부터 차례로 계산한다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 A가 (1), (2), B가 (2), (3), C가 (3)일 때 A UNION B MINUS C 의 결과는?",
+                  "choices": ["(1), (2), (3)", "(1)", "(2), (3)", "(1), (2)"],
+                  "answer": 4,
+                  "explain": "위에서부터 계산한다. A UNION B = {1, 2, 3}이고, 여기서 C의 3을 빼면 {1, 2}다."
+                },
+                {
+                  "q": "오라클에서 A가 (1), (1), (2), B가 (2)일 때 A UNION ALL B MINUS B 의 결과 행 수는?",
+                  "choices": ["1", "2", "3", "4"],
+                  "answer": 1,
+                  "explain": "A UNION ALL B는 1, 1, 2, 2 네 행이다. 여기에 MINUS B를 하면 2가 빠지고, MINUS는 결과의 중복도 없애므로 1 한 행만 남는다."
+                }
+              ]
+            },
+            {
+              "id": "set-null",
+              "title": "집합 연산자와 NULL, 그리고 조인과의 차이",
+              "summary": "집합 연산자는 중복을 판단할 때 NULL끼리를 같은 값으로 본다. 그래서 = 비교로는 놓치는 NULL도 짝을 짓는다.",
+              "desc": "WHERE나 조인 조건에서 NULL = NULL은 UNKNOWN이라 짝이 되지 않았다(조인 단원). 그런데 집합 연산자는 '두 행이 같은가'를 판단할 때 NULL끼리를 같다고 본다. DISTINCT가 NULL을 한 줄로 합치는 것과 같은 규칙이다(SELECT 기본과 WHERE 조건 단원).\n예시 SQL로 확인해 보자.\n· 사원의 부서번호 UNION 부서의 부서번호 → NULL, 10, 20, 30, 40 다섯 행. 사원 쪽 NULL(오인턴)이 한 행으로 남는다.\n· 사원의 부서번호 EXCEPT 부서의 부서번호 → NULL 한 행. 부서 테이블에 없는 값으로 NULL이 남는다.\n· 부서 EXCEPT 사원 → 40. 사원 쪽에 NULL이 있어도 NOT IN처럼 0행이 되지 않는다.\n조인과 집합 연산자의 차이도 정리해 두자. 조인은 서로 다른 열을 옆으로 붙여 열이 늘어나고, 집합 연산자는 같은 모양의 결과를 위아래로 붙여 행이 늘거나 준다.",
+              "analogy": "출석부 두 장을 합칠 때 양쪽의 '이름 미기재' 칸을 같은 칸으로 보고 하나로 합치는 것과 같다. 반면 조인처럼 '같은 이름끼리 짝짓기'를 할 때는 이름이 없는 사람끼리 짝이 되지 않는다.",
+              "sql": "SELECT 부서번호 FROM 사원\nUNION\nSELECT 부서번호 FROM 부서;\n\nSELECT 부서번호 AS 부서테이블에없는값 FROM 사원\nEXCEPT\nSELECT 부서번호 FROM 부서;\n\nSELECT 부서번호 AS 사원없는부서 FROM 부서\nEXCEPT\nSELECT 부서번호 FROM 사원;",
+              "pitfalls": [
+                "같은 NULL이라도 WHERE 부서번호 = NULL은 0행이지만, 집합 연산자에서는 NULL끼리 같은 행으로 묶인다. 상황마다 NULL을 다루는 규칙이 다르다는 점을 기억하자.",
+                "집합 연산 결과의 행 수는 UNION ALL만 두 결과의 합으로 바로 정해진다. UNION, INTERSECT, MINUS는 중복 제거 때문에 실제 값을 세어 봐야 안다.",
+                "조인으로 바꿔 풀 수 있는 문제도 많지만, 조인은 NULL끼리 짝을 짓지 않으므로 결과가 다를 수 있다."
+              ],
+              "exam": "NULL이 섞인 두 결과에 UNION, INTERSECT, MINUS를 적용한 결과를 묻는 문제가 나온다. 조인과 집합 연산자의 차이를 묻는 개념 문제도 있다.",
+              "quiz": [
+                {
+                  "q": "A의 결과가 (1), (NULL)이고 B의 결과가 (NULL), (2)일 때 A INTERSECT B 의 결과는?",
+                  "choices": ["0행", "(NULL) 한 행", "(1), (2)", "(1), (NULL), (2)"],
+                  "answer": 2,
+                  "explain": "집합 연산자는 NULL끼리를 같은 값으로 보므로, 양쪽에 있는 NULL이 교집합으로 남는다."
+                },
+                {
+                  "q": "조인과 집합 연산자를 비교한 설명으로 옳은 것은?",
+                  "choices": ["조인은 결과를 위아래로 붙이고, 집합 연산자는 옆으로 붙인다", "조인 조건에서는 NULL끼리 같은 값으로 짝지어진다", "UNION은 중복 행을 그대로 둔다", "집합 연산자로 합치는 SELECT들은 열 개수가 같아야 한다"],
+                  "answer": 4,
+                  "explain": "집합 연산자는 결과를 위아래로 쌓으므로 열 개수가 같아야 한다. 조인은 옆으로 붙이고, 조인 조건에서 NULL끼리는 짝이 되지 않는다. 중복을 그대로 두는 것은 UNION ALL이다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "SQL 활용", "name": "그룹 함수", "cards": [] },
         { "group": "SQL 활용", "name": "윈도우 함수", "cards": [] },
         { "group": "SQL 활용", "name": "Top N 쿼리", "cards": [] },

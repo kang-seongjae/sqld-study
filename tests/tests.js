@@ -85,6 +85,7 @@ const DONE_UNITS = [
   '조인',
   '표준 조인',
   '서브쿼리',
+  '집합 연산자',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -417,6 +418,38 @@ test('서브쿼리 단원: 카드·문제에 적은 값과 SQLite 동작', async
   assert(fails('CREATE OR REPLACE VIEW v AS SELECT 1'), 'OR REPLACE 없음');
   assert(fails("INSERT INTO 부서별현황 VALUES ('x', 1)"), '뷰는 읽기 전용');
   assert(fails('CREATE VIEW 부서별현황 AS SELECT 1'), '같은 이름 뷰');
+  db.close();
+});
+
+test('집합 연산자 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  const d20 = 'SELECT 이름, 직급 FROM 사원 WHERE 부서번호 = 20';
+  const mgr = "SELECT 이름, 직급 FROM 사원 WHERE 직급 = '과장'";
+  eq(rows(`${d20} UNION ${mgr}`).length, 5, 'UNION');
+  eq(rows(`${d20} UNION ALL ${mgr}`).length, 6, 'UNION ALL');
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 부서번호 = 20 OR 직급 = '과장'"), [5], 'OR와 같은 결과');
+  eq(rows('SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 2 UNION SELECT 2 UNION SELECT 3').length, 3, '뒤의 UNION이 앞 중복까지 제거');
+  eq(rows("SELECT 이름 AS 사람, 급여 FROM 사원 WHERE 부서번호 = 10 UNION SELECT 이름, 급여 FROM 사원 WHERE 부서번호 = 30 ORDER BY 급여 DESC")[0], ['김대표', 9000]);
+  eq(db.exec('SELECT 이름 AS 사람 FROM 사원 UNION SELECT 부서명 AS 부서 FROM 부서')[0].columns, ['사람'], '열 이름은 첫 SELECT');
+  eq(rows("SELECT 이름 FROM 사원 WHERE 부서번호 = 20 INTERSECT SELECT 이름 FROM 사원 WHERE 직급 = '과장'").flat(), ['최과장']);
+  eq(rows('SELECT 부서번호 FROM 사원 INTERSECT SELECT 부서번호 FROM 부서').flat(), [10, 20, 30]);
+  eq(rows('SELECT 직급 FROM 사원 WHERE 부서번호 = 20 INTERSECT SELECT 직급 FROM 사원 WHERE 부서번호 = 30').length, 4);
+  eq(rows('SELECT 사원번호 FROM 사원 WHERE 부서번호 = 20 INTERSECT SELECT 사원번호 FROM 사원 WHERE 급여 >= 5000').flat(), [1002, 1004]);
+  eq(rows("SELECT 이름 FROM 사원 WHERE 부서번호 = 20 EXCEPT SELECT 이름 FROM 사원 WHERE 직급 = '과장'").length, 3, 'EXCEPT');
+  eq(rows('SELECT 부서번호 FROM 부서 EXCEPT SELECT 부서번호 FROM 사원').flat(), [40], '부서 - 사원');
+  eq(rows('SELECT 부서번호 FROM 사원 EXCEPT SELECT 부서번호 FROM 부서').flat(), [null], '사원 - 부서는 NULL');
+  eq(rows('SELECT 부서번호 FROM 사원 UNION SELECT 부서번호 FROM 부서').flat(), [null, 10, 20, 30, 40], 'UNION은 NULL을 한 행으로');
+  eq(rows('SELECT * FROM (SELECT 1 AS x UNION ALL SELECT NULL) INTERSECT SELECT * FROM (SELECT NULL UNION ALL SELECT 2)').flat(), [null], 'INTERSECT는 NULL끼리 같다');
+  eq(rows('SELECT 1 AS 값 UNION SELECT 2 INTERSECT SELECT 2').flat(), [2], '위에서부터 차례로');
+  eq(rows('SELECT 1 AS 값 UNION SELECT * FROM (SELECT 2 INTERSECT SELECT 2)').flat(), [1, 2], '인라인 뷰로 순서 바꾸기');
+  eq(rows('SELECT 1 UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 2 EXCEPT SELECT 2').flat(), [1], 'UNION ALL 뒤 차집합');
+  // 오라클과 다르다고 적은 SQLite 동작
+  eq(rows("SELECT 1 AS 숫자 UNION SELECT '가'").length, 2, '타입이 다른 열도 합침');
+  eq(rows('SELECT 이름 AS 사람, 급여 FROM 사원 WHERE 부서번호 = 10 UNION SELECT 이름 AS 성명, 급여 FROM 사원 WHERE 부서번호 = 30 ORDER BY 성명').length, 6, '두 번째 SELECT 별칭으로 정렬');
+  assert(fails("SELECT 이름 FROM 사원 MINUS SELECT 이름 FROM 사원 WHERE 직급 = '과장'"), 'MINUS 없음');
+  assert(fails('SELECT 1 UNION (SELECT 2 INTERSECT SELECT 2)'), '괄호 묶기 안 됨');
+  assert(fails('SELECT 이름, 직급 FROM 사원 UNION SELECT 이름 FROM 사원'), '열 개수 다름');
+  assert(fails('SELECT 이름 FROM 사원 WHERE 부서번호 = 10 ORDER BY 이름 UNION SELECT 이름 FROM 사원'), '중간 ORDER BY');
   db.close();
 });
 
