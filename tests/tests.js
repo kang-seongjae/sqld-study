@@ -96,6 +96,7 @@ const DONE_UNITS = [
   'TCL',
   'DDL',
   'DCL',
+  '데이터모델의 이해',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -843,6 +844,25 @@ async function reload(frame) {
   await frame.contentWindow.appReady;
 }
 
+// 과목 목록을 돌며 이름이 prefix로 시작하는 단원을 찾아 고른다.
+function pickUnit(frame, prefix) {
+  const w = frame.contentWindow;
+  const d = frame.contentDocument;
+  const subjects = d.querySelector('#pick-subject');
+  for (const opt of [...subjects.options]) {
+    subjects.value = opt.value;
+    subjects.dispatchEvent(new w.Event('change', { bubbles: true }));
+    const units = d.querySelector('#pick-unit');
+    const found = [...units.options].find((o) => o.textContent.startsWith(prefix));
+    if (found) {
+      units.value = found.value;
+      units.dispatchEvent(new w.Event('change', { bubbles: true }));
+      return;
+    }
+  }
+  throw new Error(`단원 없음: ${prefix}`);
+}
+
 function key(win, target, k, opts = {}) {
   target.dispatchEvent(new win.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
 }
@@ -870,11 +890,9 @@ test('카드: 단원을 바꾸고, 예시 SQL을 연습창으로 보내고, Ctrl
   const f = await openApp('e2e-cards', 1280, 800);
   const w = f.contentWindow;
   const d = f.contentDocument;
+  pickUnit(f, 'GROUP BY');
   eq(d.querySelectorAll('#pick-unit optgroup').length, 3, '2과목 주요항목 3개');
   eq(d.querySelectorAll('#pick-unit option').length, 19, '2과목 단원 19개');
-  const sel = d.querySelector('#pick-unit');
-  sel.value = [...sel.options].find((o) => o.textContent.startsWith('GROUP BY')).value;
-  sel.dispatchEvent(new w.Event('change', { bubbles: true }));
   await waitFor(() => d.querySelector('[data-card="group-aggregate"]'), 'GROUP BY 단원 첫 카드');
   [...d.querySelectorAll('.card-nav button')].find((b) => b.textContent.includes('HAVING')).click();
   const card = await waitFor(() => d.querySelector('[data-card="group-by-having"]'), '카드 목록에서 HAVING 카드로');
@@ -894,10 +912,8 @@ test('카드 화면: 처음엔 SELECT 단원, 항목별 구역, 실행 결과, �
   const w = f.contentWindow;
   const d = f.contentDocument;
   const card = () => d.querySelector('#view-cards .card');
-  eq(card().dataset.card, 'rdb-database', '카드가 있는 첫 단원의 첫 카드');
-  const sel = d.querySelector('#pick-unit');
-  sel.value = [...sel.options].find((o) => o.textContent.startsWith('SELECT 기본과 WHERE')).value;
-  sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+  eq(card().dataset.card, 'model-what', '처음 열면 카드가 있는 첫 단원(1과목 데이터모델의 이해)의 첫 카드');
+  pickUnit(f, 'SELECT 기본과 WHERE');
   eq(card().dataset.card, 'select-basic', '단원을 바꾸면 그 단원 첫 카드');
   assert(d.querySelector('.scope').textContent.includes('SELECT 문, WHERE 절'), '출제 범위 표시');
   eq(d.querySelectorAll('.card-nav button').length, 8);
@@ -927,9 +943,7 @@ test('카드 화면: 표(figures)가 있는 카드는 표와 그림 구역에 �
   const f = await openApp('e2e-figure', 1280, 900);
   const w = f.contentWindow;
   const d = f.contentDocument;
-  const sel = d.querySelector('#pick-unit');
-  sel.value = [...sel.options].find((o) => o.textContent.startsWith('그룹 함수')).value;
-  sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+  pickUnit(f, '그룹 함수');
   [...d.querySelectorAll('.card-nav button')].find((b) => b.textContent.includes('CUBE')).click();
   const card = d.querySelector('#view-cards .card');
   eq(card.dataset.card, 'grp-cube');
