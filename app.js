@@ -17,12 +17,17 @@ let dataErrors = [];
 let questions = [];
 let qById = new Map();
 let state = loadJson(STORE_KEY, L.normalizeState, L.emptyState);
-const ui = loadJson(UI_KEY, (v) => ({ subject: v?.subject | 0, unit: v?.unit | 0 }), () => ({ subject: 0, unit: 0 }));
+// 처음 열면 null → 카드가 있는 첫 단원으로 시작한다(loadCards).
+let ui = loadJson(UI_KEY, (v) => (v && typeof v === 'object' ? { subject: v.subject | 0, unit: v.unit | 0, card: v.card | 0 } : null), () => null);
 let tab = 'cards';
 // 탭별 퀴즈 진행: { ids, idx, answers }. 오늘의 퀴즈의 answers는 state.daily.answers 그 자체라 저장된다.
-const sessions = { quiz: null, wrong: null };
+// cards는 지금 보고 있는 카드의 '직접 풀어보기'(cardId가 붙는다).
+const sessions = { quiz: null, wrong: null, cards: null };
 let db = null;
 let SQL = null;
+// 카드 예시 SQL을 새 예제 DB에서 돌린 결과. 연습창에서 테이블을 바꿔도 카드 결과는 그대로다.
+const exampleCache = new Map();
+const EXAMPLE_ROWS = 8;
 
 // ---------- 저장 ----------
 
@@ -80,7 +85,12 @@ function setTab(next) {
   for (const b of document.querySelectorAll('.tabs [data-tab]')) {
     b.setAttribute('aria-selected', String(b.dataset.tab === tab));
   }
-  for (const t of TABS) $(`#view-${t}`).hidden = t !== tab;
+  for (const t of TABS) {
+    const view = $(`#view-${t}`);
+    view.hidden = t !== tab;
+    // 숨은 탭에 버튼(#btn-next 등)이 남아 있으면 포커스·키 처리가 꼬이므로 비운다.
+    if (t !== tab) view.replaceChildren();
+  }
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
   render();
 }
@@ -115,39 +125,132 @@ function renderCards() {
     view.append(h('p', { class: 'empty' }, '아직 카드가 없어요. data/cards.json에 추가해 보세요.'));
     return;
   }
-  ui.subject = Math.min(ui.subject, subjects.length - 1);
-  const subject = subjects[ui.subject];
-  ui.unit = Math.min(ui.unit, Math.max(subject.units.length - 1, 0));
-  const unit = subject.units[ui.unit];
+  const { subject, unit } = currentPlace();
 
   const subjectSel = h('select', {
     id: 'pick-subject',
-    onchange: (e) => { ui.subject = +e.target.value; ui.unit = 0; saveUi(); renderCards(); },
+    onchange: (e) => { ui.subject = +e.target.value; ui.unit = 0; ui.card = 0; saveUi(); renderCards(); },
   }, subjects.map((s, i) => h('option', { value: i, selected: i === ui.subject }, s.name)));
+  // 단원은 출제 기준의 주요항목(group)별로 묶어서 보여 준다.
   const unitSel = h('select', {
     id: 'pick-unit',
-    onchange: (e) => { ui.unit = +e.target.value; saveUi(); renderCards(); },
-  }, subject.units.map((u, i) => h('option', { value: i, selected: i === ui.unit }, `${u.name} (${u.cards.length})`)));
+    onchange: (e) => { ui.unit = +e.target.value; ui.card = 0; saveUi(); renderCards(); },
+  });
+  let optParent = unitSel;
+  subject.units.forEach((u, i) => {
+    if (u.group && (i === 0 || subject.units[i - 1].group !== u.group)) {
+      optParent = h('optgroup', { label: u.group });
+      unitSel.append(optParent);
+    }
+    optParent.append(h('option', { value: i, selected: i === ui.unit }, `${u.name} (${u.cards.length})`));
+  });
 
   view.append(h('div', { class: 'pickers' },
     h('label', {}, '과목', subjectSel),
     h('label', {}, '단원', unitSel)));
+  if (unit) {
+    view.append(h('p', { class: 'scope' }, '출제 범위: ',
+      [unit.group, (unit.topics || [unit.name]).join(', ')].filter(Boolean).join(' › ')));
+  }
 
   if (!unit || !unit.cards.length) {
-    view.append(h('p', { class: 'empty' }, '이 단원에는 아직 카드가 없어요.'));
+    view.append(h('p', { class: 'empty' }, '이 단원에는 아직 카드가 없어요. data/cards.json에 추가해 보세요.'));
     return;
   }
-  for (const c of unit.cards) {
-    const nQuiz = (c.quiz || []).length;
-    view.append(h('article', { class: 'card', 'data-card': c.id },
-      h('div', { class: 'crumb' }, `${subject.name} › ${unit.name}`),
-      h('h3', {}, c.title),
-      c.desc && h('p', { class: 'desc' }, c.desc),
-      c.sql && h('pre', { class: 'sql' }, h('code', {}, c.sql)),
+  const cards = unit.cards;
+  view.append(h('ol', { class: 'card-nav', 'aria-label': '이 단원의 카드' }, cards.map((c, i) =>
+    h('li', {}, h('button', {
+      type: 'button',
+      'aria-current': i === ui.card ? 'true' : null,
+      onclick: () => goCard(i),
+    }, `${i + 1}. ${c.title}`)))));
+  view.append(renderCard(cards[ui.card], subject, unit));
+  view.append(h('div', { class: 'card-pager' },
+    h('button', { type: 'button', id: 'btn-prev-card', disabled: ui.card === 0, onclick: () => goCard(ui.card - 1) }, '← 이전 카드'),
+    h('span', { class: 'meta' }, `${ui.card + 1} / ${cards.length}`),
+    h('button', { type: 'button', id: 'btn-next-card', disabled: ui.card === cards.length - 1, onclick: () => goCard(ui.card + 1) }, '다음 카드 →')));
+}
+
+// 저장된 위치가 카드 파일과 안 맞으면(카드를 지웠을 때 등) 범위 안으로 당긴다.
+function currentPlace() {
+  const subjects = data.subjects;
+  ui.subject = Math.min(Math.max(ui.subject, 0), subjects.length - 1);
+  const subject = subjects[ui.subject];
+  ui.unit = Math.min(Math.max(ui.unit, 0), Math.max(subject.units.length - 1, 0));
+  const unit = subject.units[ui.unit];
+  ui.card = Math.min(Math.max(ui.card, 0), Math.max((unit?.cards.length || 1) - 1, 0));
+  return { subject, unit, card: unit?.cards[ui.card] };
+}
+
+function goCard(i) {
+  const { unit } = currentPlace();
+  if (!unit || i < 0 || i >= unit.cards.length) return;
+  ui.card = i;
+  saveUi();
+  renderCards();
+  $('.panel-left').scrollTo({ top: 0 });
+  if (isNarrow()) $('.card-nav').scrollIntoView({ block: 'start' });
+}
+
+function section(cls, title, ...body) {
+  return h('section', { class: `sec ${cls}` }, h('h4', { class: 'sec-title' }, title), ...body);
+}
+
+function renderCard(c, subject, unit) {
+  const oracle = c.oracle || [];
+  const card = h('article', { class: 'card', 'data-card': c.id },
+    h('div', { class: 'crumb' }, `${subject.name} › ${unit.name}`),
+    h('h3', {}, c.title, oracle.length > 0 && h('span', { class: 'tag-oracle' }, '오라클과 다름')),
+    c.summary && h('p', { class: 'summary' }, c.summary),
+    c.desc && section('sec-desc', '쉽게 풀어 보면', h('p', { class: 'desc' }, c.desc)),
+    c.analogy && section('sec-analogy', '비유로 이해하기', h('p', {}, c.analogy)),
+    c.sql && section('sec-sql', '예시 SQL',
+      h('pre', { class: 'sql' }, h('code', {}, c.sql)),
       h('div', { class: 'card-actions' },
-        c.sql && h('button', { type: 'button', class: 'primary', 'data-send': '', onclick: () => sendToEditor(c.sql) }, '연습창으로 보내기 ▶'),
-        h('span', { class: 'meta' }, nQuiz ? `퀴즈 ${nQuiz}문제` : '퀴즈 없음'))));
+        h('button', { type: 'button', class: 'primary', 'data-send': '', onclick: () => sendToEditor(c.sql) }, '연습창으로 보내기 ▶')),
+      h('div', { class: 'example-result' }, h('p', { class: 'sub-title' }, '예제 테이블에서 실행한 결과'), exampleResultNodes(c.sql))),
+    c.pitfalls?.length > 0 && section('sec-pitfalls', '헷갈리기 쉬운 점', h('ul', {}, c.pitfalls.map((p) => h('li', {}, p)))),
+    oracle.length > 0 && section('sec-oracle', '오라클과 SQLite가 달라요', h('ul', {}, oracle.map((p) => h('li', {}, p)))));
+
+  const ids = questions.filter((q) => q.cardId === c.id).map((q) => q.id);
+  if (c.exam || ids.length) {
+    const quizBox = h('div', { class: 'card-quiz' });
+    if (ids.length) {
+      if (sessions.cards?.cardId !== c.id) sessions.cards = { cardId: c.id, ids, idx: 0, answers: {} };
+      const s = sessions.cards;
+      renderSession(quizBox, s, {
+        title: '직접 풀어보기',
+        onDone: (v) => {
+          v.append(
+            h('p', {}, h('strong', {}, `직접 풀어보기 ${scoreOf(s)} / ${s.ids.length}`), ' 맞혔어요. 틀린 문제는 오답노트에 담겼어요.'),
+            h('div', { class: 'row' },
+              h('button', { type: 'button', onclick: () => { sessions.cards = null; renderCards(); } }, '다시 풀기'),
+              ui.card + 1 < unit.cards.length && h('button', { type: 'button', class: 'primary', onclick: () => goCard(ui.card + 1) }, '다음 카드 →')));
+        },
+      });
+    }
+    card.append(section('sec-exam', '시험에서는 이렇게 물어요', c.exam && h('p', {}, c.exam), quizBox));
   }
+  return card;
+}
+
+function exampleResultNodes(sql) {
+  if (!SQL) return h('p', { class: 'result-msg' }, 'SQL 엔진을 불러오는 중이에요…');
+  if (!exampleCache.has(sql)) {
+    const ref = new SQL.Database();
+    try {
+      ref.exec(SEED_SQL);
+      exampleCache.set(sql, { sets: ref.exec(sql), changes: ref.getRowsModified() });
+    } catch (err) {
+      exampleCache.set(sql, { error: err.message });
+    } finally {
+      ref.close();
+    }
+  }
+  const r = exampleCache.get(sql);
+  if (r.error) return h('p', { class: 'result-error' }, `오류: ${r.error}`);
+  if (!r.sets.length) return h('p', { class: 'result-msg' }, `실행했어요. 바뀐 행: ${r.changes}`);
+  return r.sets.flatMap((set) => resultTable(set, EXAMPLE_ROWS));
 }
 
 function sendToEditor(sql) {
@@ -164,7 +267,11 @@ function sendToEditor(sql) {
 // ---------- 퀴즈 공통 ----------
 
 function currentSession() {
-  return tab === 'quiz' || tab === 'wrong' ? sessions[tab] : null;
+  if (tab === 'cards') {
+    const s = sessions.cards;
+    return s && data.subjects.length && s.cardId === currentPlace().card?.id ? s : null;
+  }
+  return sessions[tab];
 }
 
 function currentQuestion(s) {
@@ -325,10 +432,10 @@ function showResult(...nodes) {
   $('#sql-result').replaceChildren(...nodes);
 }
 
-function resultTable({ columns, values }) {
-  const shown = values.slice(0, MAX_ROWS);
+function resultTable({ columns, values }, max = MAX_ROWS) {
+  const shown = values.slice(0, max);
   return [
-    h('p', { class: 'result-msg' }, values.length > MAX_ROWS ? `${values.length}행 중 ${MAX_ROWS}행만 보여요` : `${values.length}행`),
+    h('p', { class: 'result-msg' }, values.length > max ? `${values.length}행 중 ${max}행만 보여요` : `${values.length}행`),
     h('div', { class: 'table-wrap' }, h('table', { class: 'result' },
       h('thead', {}, h('tr', {}, columns.map((c) => h('th', {}, c)))),
       h('tbody', {}, shown.map((row) => h('tr', {}, row.map((v) => {
@@ -350,7 +457,7 @@ function runEditor() {
     if (!sets.length) {
       showResult(h('p', { class: 'result-msg' }, `실행했어요. 바뀐 행: ${db.getRowsModified()}`));
     } else {
-      showResult(...sets.flatMap(resultTable));
+      showResult(...sets.flatMap((set) => resultTable(set)));
     }
   } catch (err) {
     showResult(h('p', { class: 'result-error' }, `오류: ${err.message}`));
@@ -362,6 +469,7 @@ async function initDb() {
     SQL = await initSqlJs({ locateFile: (f) => `vendor/${f}` });
     resetDb();
     runEditor();
+    if (tab === 'cards') renderCards(); // 카드의 '실행한 결과'를 채운다
   } catch (err) {
     showResult(h('p', { class: 'result-error' }, `SQL 엔진을 불러오지 못했어요: ${err.message}`));
   }
@@ -408,6 +516,11 @@ function onKeydown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
   // 글을 입력하는 중에는 숫자 키를 가로채지 않는다.
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  if (tab === 'cards' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && data.subjects.length) {
+    e.preventDefault();
+    goCard(ui.card + (e.key === 'ArrowRight' ? 1 : -1));
+    return;
+  }
   const s = currentSession();
   const q = currentQuestion(s);
   if (!q) return;
@@ -439,6 +552,14 @@ async function loadCards() {
     dataErrors = [`data/cards.json을 읽지 못했어요: ${err.message}`];
   }
   qById = new Map(questions.map((q) => [q.id, q]));
+  if (!ui) {
+    ui = { subject: 0, unit: 0, card: 0 };
+    data.subjects.some((s, si) => s.units.some((u, ui2) => {
+      if (!u.cards.length) return false;
+      ui = { subject: si, unit: ui2, card: 0 };
+      return true;
+    }));
+  }
 }
 
 async function start() {

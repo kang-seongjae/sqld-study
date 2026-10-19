@@ -138,6 +138,31 @@ pre.sql {
   overflow-x: auto;
 }
 .card-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* 카드 한 장: 항목마다 제목을 단 구역으로 나눈다 */
+.scope { margin: -6px 0 12px; font-size: 0.85rem; color: var(--muted); }
+.card-nav { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.card-nav button { min-height: 34px; padding: 3px 10px; font-size: 0.85rem; color: var(--muted); }
+.card-nav button[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.card-pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.card h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tag-oracle { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn-text); }
+.summary { margin: 4px 0 4px; padding: 10px 14px; border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; font-weight: 600; }
+.sec { margin-top: 18px; }
+.sec-title { margin: 0 0 6px; font-size: 0.8rem; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
+.sec p { margin: 0; }
+.sec ul { margin: 0; padding-left: 20px; }
+.sec li + li { margin-top: 6px; }
+.sec-analogy { padding: 10px 14px; border-radius: 8px; background: var(--code-bg); }
+.sec-oracle { padding: 10px 14px; border-radius: 8px; background: var(--warn-soft); color: var(--warn-text); }
+.sec-oracle .sec-title { color: inherit; }
+.example-result { margin-top: 12px; }
+.example-result .table-wrap { max-height: none; }
+.sub-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.sec-exam { border-top: 1px dashed var(--line); padding-top: 14px; }
+.card-quiz { margin-top: 12px; }
+.card-quiz .question { font-size: 1.05rem; }
+.card-quiz .quiz-head .crumb { display: none; }
 .card-actions .meta { color: var(--muted); font-size: 0.85rem; }
 
 .empty, .hint { color: var(--muted); }

@@ -61,8 +61,31 @@ test('validateCards: 실제 data/cards.json에 오류 없음', async () => {
   const data = await (await fetch('../data/cards.json')).json();
   eq(L.validateCards(data), []);
   const qs = L.collectQuestions(data);
-  assert(qs.length >= 1, '퀴즈가 하나 이상');
-  eq(qs[0].id, 'select-where#1');
+  assert(qs.length >= 10, '하루 10문제를 채울 만큼');
+  eq(qs[0].id, 'select-basic#1');
+});
+
+test('cards.json: 공식 출제 범위 2과목·30개 세부항목 구조', async () => {
+  const data = await (await fetch('../data/cards.json')).json();
+  // 2과목 세부항목은 20개지만 'SELECT 문'과 'WHERE 절'을 한 단원으로 묶어 단원은 19개
+  eq(data.subjects.map((s) => s.units.length), [10, 19]);
+  eq([...new Set(data.subjects.flatMap((s) => s.units.map((u) => u.group)))],
+    ['데이터 모델링의 이해', '데이터 모델과 SQL', 'SQL 기본', 'SQL 활용', '관리 구문']);
+  const topics = data.subjects.flatMap((s) => s.units.flatMap((u) => u.topics || [u.name]));
+  eq(topics.length, 30);
+});
+
+test('SELECT 기본과 WHERE 조건: 카드 5~8장, 카드마다 모든 항목과 문제 2개', async () => {
+  const data = await (await fetch('../data/cards.json')).json();
+  const unit = data.subjects[1].units.find((u) => u.name === 'SELECT 기본과 WHERE 조건');
+  assert(unit.cards.length >= 5 && unit.cards.length <= 8, `카드 ${unit.cards.length}장`);
+  for (const c of unit.cards) {
+    for (const k of ['summary', 'desc', 'analogy', 'sql', 'exam']) assert(c[k], `${c.id}: ${k} 없음`);
+    assert(c.pitfalls.length > 0, `${c.id}: pitfalls 없음`);
+    assert(c.oracle.length > 0, `${c.id}: oracle 없음`);
+    eq(c.quiz.length, 2, `${c.id} 문제 수`);
+    for (const q of c.quiz) assert(q.explain, `${c.id}: 해설 없음`);
+  }
 });
 
 test('validateCards: 겹치는 id, 잘못된 정답 번호, 보기 개수를 잡아냄', () => {
@@ -75,6 +98,14 @@ test('validateCards: 겹치는 id, 잘못된 정답 번호, 보기 개수를 잡
   assert(errs.includes('answer'), errs);
   assert(errs.includes('겹쳐요'), errs);
   eq(L.validateCards({}).length, 1);
+});
+
+test('validateCards: 카드 항목의 모양(문자열/배열)을 검사', () => {
+  const bad = { subjects: [{ name: 'S', units: [{ name: 'U', group: 1, cards: [
+    { id: 'a', title: 'A', summary: ['x'], pitfalls: 'x', oracle: [1] },
+  ] }] }] };
+  const errs = L.validateCards(bad).join('\n');
+  for (const k of ['group', 'summary', 'pitfalls', 'oracle']) assert(errs.includes(k), `${k}: ${errs}`);
 });
 
 test('recordAnswer: 틀리면 오답노트에 쌓이고 맞히면 빠짐', () => {
@@ -157,6 +188,37 @@ test('예제 카드의 SQL이 모두 예제 DB에서 실행됨', async () => {
   }
 });
 
+test('카드에 적은 SQLite 쪽 동작이 연습창 엔진(sql.js)에서 사실임', async () => {
+  const SQL = await initSqlJs({ locateFile: (f) => `../vendor/${f}` });
+  const db = new SQL.Database();
+  db.exec(SEED_SQL);
+  const one = (sql) => db.exec(sql)[0].values[0];
+  eq(one('SELECT 1 + 1'), [2], 'FROM 없이 SELECT');
+  eq(one('SELECT 7 / 2, 7 / 2.0'), [3, 3.5], '정수 나눗셈');
+  eq(one("SELECT 'A' || NULL, '' IS NULL"), [null, 0], 'NULL 연결, 빈 문자열');
+  eq(one("SELECT 'abc' LIKE 'A%'"), [1], 'LIKE 대소문자');
+  eq(one('SELECT COUNT(*) FROM 사원 AS e'), [11], '테이블 별칭 AS');
+  eq(db.exec('SELECT 급여 * 12 AS 연봉 FROM 사원 WHERE 연봉 > 60000')[0].values.length, 3, 'WHERE에서 별칭');
+  eq(one('SELECT COUNT(*) FROM 사원 WHERE 커미션 IS 0'), [1], 'IS 0');
+  eq(one('SELECT "과장"'), ['과장'], '큰따옴표를 문자로');
+  eq(db.exec('SELECT 이름 직급 FROM 사원')[0].columns, ['직급'], '쉼표 빠진 별칭');
+  // 카드 본문에 적은 건수
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE 직급 = '사원' OR 직급 = '대리' AND 급여 >= 3900"), [5]);
+  eq(one("SELECT COUNT(*) FROM 사원 WHERE (직급 = '사원' OR 직급 = '대리') AND 급여 >= 3900"), [2]);
+  eq(one('SELECT COUNT(*) FROM 사원 WHERE 부서번호 NOT IN (10)'), [8]);
+  eq(one('SELECT COUNT(*) FROM 사원 WHERE 부서번호 NOT IN (10, NULL)'), [0]);
+  eq(one('SELECT COUNT(*) FROM 사원 WHERE 커미션 IS NULL'), [7]);
+  eq(one('SELECT COUNT(*) FROM (SELECT DISTINCT 직급, 부서번호 FROM 사원)'), [11]);
+  eq(one('SELECT COUNT(*) FROM (SELECT DISTINCT 부서번호 FROM 사원)'), [4]);
+  eq(one('SELECT COUNT(DISTINCT 부서번호) FROM 사원'), [3]);
+  for (const bad of ['SELECT UNIQUE 직급 FROM 사원', 'SELECT 이름, DISTINCT 직급 FROM 사원', 'SELECT 사원.이름 FROM 사원 e']) {
+    let failed = false;
+    try { db.exec(bad); } catch { failed = true; }
+    assert(failed, `오류가 나야 함: ${bad}`);
+  }
+  db.close();
+});
+
 // ---------- 실제 앱 화면 (iframe) ----------
 
 async function openApp(ns, width, height, hash = 'cards') {
@@ -202,9 +264,10 @@ test('카드: 단원을 바꾸고, 예시 SQL을 연습창으로 보내고, Ctrl
   const f = await openApp('e2e-cards', 1280, 800);
   const w = f.contentWindow;
   const d = f.contentDocument;
-  eq(d.querySelectorAll('#pick-unit option').length, 3, '단원 3개');
+  eq(d.querySelectorAll('#pick-unit optgroup').length, 3, '2과목 주요항목 3개');
+  eq(d.querySelectorAll('#pick-unit option').length, 19, '2과목 단원 19개');
   const sel = d.querySelector('#pick-unit');
-  sel.value = '1';
+  sel.value = [...sel.options].find((o) => o.textContent.startsWith('GROUP BY')).value;
   sel.dispatchEvent(new w.Event('change', { bubbles: true }));
   const card = await waitFor(() => d.querySelector('[data-card="group-by-having"]'), 'GROUP BY 카드');
   card.querySelector('[data-send]').click();
@@ -214,6 +277,38 @@ test('카드: 단원을 바꾸고, 예시 SQL을 연습창으로 보내고, Ctrl
   const rows = await waitFor(() => d.querySelectorAll('#sql-result tbody tr'), '결과 표');
   eq(rows.length, 2, 'HAVING COUNT(*) >= 3 인 부서 2개');
   eq([...d.querySelectorAll('#sql-result th')].map((th) => th.textContent), ['부서번호', '인원', '평균급여']);
+});
+
+test('카드 화면: 처음엔 SELECT 단원, 항목별 구역, 실행 결과, ←→ 이동, 직접 풀어보기', async () => {
+  const data = await (await fetch('../data/cards.json')).json();
+  const byText = new Map(L.collectQuestions(data).map((q) => [q.q, q]));
+  const f = await openApp('e2e-card-view', 1280, 900);
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  const card = () => d.querySelector('#view-cards .card');
+  eq(card().dataset.card, 'select-basic', '카드가 있는 첫 단원의 첫 카드');
+  assert(d.querySelector('.scope').textContent.includes('SELECT 문, WHERE 절'), '출제 범위 표시');
+  eq(d.querySelectorAll('.card-nav button').length, 8);
+  eq([...card().querySelectorAll('.sec-title')].map((e) => e.textContent),
+    ['쉽게 풀어 보면', '비유로 이해하기', '예시 SQL', '헷갈리기 쉬운 점', '오라클과 SQLite가 달라요', '시험에서는 이렇게 물어요']);
+  assert(card().querySelector('.summary'), '한 줄 요약');
+  assert(card().querySelector('.tag-oracle'), '오라클 차이 표시');
+  await waitFor(() => card().querySelectorAll('.example-result tbody tr').length === 8, '실행 결과 표(8행까지)');
+  assert(card().querySelector('.example-result').textContent.includes('11행 중 8행'), '잘린 행 수 안내');
+
+  key(w, d.body, 'ArrowRight');
+  eq(card().dataset.card, 'select-order', '→ 다음 카드');
+  key(w, d.body, 'ArrowLeft');
+  eq(card().dataset.card, 'select-basic', '← 이전 카드');
+
+  const q = byText.get(card().querySelector('.card-quiz .question').textContent);
+  key(w, d.body, String(q.answer));
+  assert(card().querySelector('.card-quiz .feedback.ok'), '카드 안에서 숫자 키로 답');
+  key(w, d.body, 'Enter');
+  assert(card().querySelector('.card-quiz .progress').textContent.includes('2 / 2'), '두 번째 문제');
+  const q2 = byText.get(card().querySelector('.card-quiz .question').textContent);
+  key(w, d.body, String(q2.answer === 1 ? 2 : 1));
+  eq(d.querySelector('#wrong-count').textContent, '1', '카드에서 틀려도 오답노트에');
 });
 
 test('SQL: 오류는 빨간 메시지로, 수정문은 바뀐 행 수로, 초기화하면 원래대로', async () => {
@@ -241,7 +336,7 @@ test('퀴즈: 숫자 키로 답하고, 틀리면 오답노트, 다시 맞히면 
   const body = d.body;
   const current = () => byText.get(d.querySelector('#view-quiz .question').textContent);
 
-  assert(d.querySelector('#view-quiz .progress').textContent.includes('1 / 3'), '문제가 3개라 3문제');
+  assert(d.querySelector('#view-quiz .progress').textContent.includes('1 / 10'), '하루 10문제');
   // 글 입력 중에는 숫자 키를 퀴즈가 가로채지 않음
   key(w, d.querySelector('#sql-editor'), '1');
   assert(!d.querySelector('#view-quiz .feedback'), '연습창 입력 중에는 답하지 않음');
@@ -252,12 +347,12 @@ test('퀴즈: 숫자 키로 답하고, 틀리면 오답노트, 다시 맞히면 
   assert(d.querySelector('#view-quiz .feedback.bad'), '오답 표시');
   eq(d.querySelector('#wrong-count').textContent, '1');
   key(w, body, 'Enter');
-  assert(d.querySelector('#view-quiz .progress').textContent.includes('2 / 3'), 'Enter로 다음 문제');
+  assert(d.querySelector('#view-quiz .progress').textContent.includes('2 / 10'), 'Enter로 다음 문제');
 
   // 새로고침해도 이어서 풂
   await reload(f);
   const d2 = f.contentDocument;
-  assert(d2.querySelector('#view-quiz .progress').textContent.includes('2 / 3'), '진행 상황 유지');
+  assert(d2.querySelector('#view-quiz .progress').textContent.includes('2 / 10'), '진행 상황 유지');
   eq(d2.querySelector('#wrong-count').textContent, '1', '오답노트 유지');
 
   // 오답노트에서 다시 맞히면 빠짐
