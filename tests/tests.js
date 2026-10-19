@@ -103,6 +103,7 @@ const DONE_UNITS = [
   '식별자',
   '정규화',
   '관계와 조인의 이해',
+  '모델이 표현하는 트랜잭션의 이해',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -876,6 +877,26 @@ test('관계와 조인의 이해 단원: 카드·문제에 적은 값과 SQLite 
   eq(rows('SELECT e.이름, m.이름 FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호 ORDER BY e.사원번호'),
     [['이부장', '김대표'], ['박부장', '김대표'], ['최과장', '이부장'], ['정과장', '박부장'], ['강대리', '최과장'],
       ['조대리', '정과장'], ['윤사원', '최과장'], ['장사원', '정과장'], ['한사원', '김대표'], ['오인턴', '이부장']], '계층 그림과 같음');
+  db.close();
+});
+
+test('모델이 표현하는 트랜잭션의 이해 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  // ROLLBACK 카드: 트랜잭션 안에서는 바뀐 값, ROLLBACK 뒤에는 원래 값
+  const sets = db.exec('BEGIN; UPDATE 사원 SET 급여 = 급여 - 500 WHERE 사원번호 = 1002; UPDATE 사원 SET 급여 = 급여 + 500 WHERE 사원번호 = 1004; '
+    + 'SELECT 이름, 급여 FROM 사원 WHERE 사원번호 IN (1002, 1004); ROLLBACK; SELECT 이름, 급여 FROM 사원 WHERE 사원번호 IN (1002, 1004);');
+  eq(sets.map((s) => s.values), [[['이부장', 6000], ['최과장', 5500]], [['이부장', 6500], ['최과장', 5000]]]);
+  // 첫 카드: COMMIT한 이체는 두 사람 급여의 합이 그대로
+  db.exec('BEGIN; UPDATE 사원 SET 급여 = 급여 - 500 WHERE 사원번호 = 1002; UPDATE 사원 SET 급여 = 급여 + 500 WHERE 사원번호 = 1004; COMMIT;');
+  eq(rows('SELECT 급여 FROM 사원 WHERE 사원번호 IN (1002, 1004) ORDER BY 사원번호').flat(), [6000, 5500]);
+  eq(one('SELECT SUM(급여) FROM 사원'), [51400], '이체 전후 전체 합계 같음');
+  // 필수/선택 카드: 사원이 없는 연구 부서는 사원수 0
+  eq(rows('SELECT d.부서명, COUNT(e.사원번호) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 GROUP BY d.부서번호, d.부서명 ORDER BY d.부서번호'),
+    [['경영지원', 2], ['개발', 4], ['영업', 4], ['연구', 0]]);
+  // 오라클과 다르다고 적은 SQLite 동작: BEGIN 없이는 바로 확정되어 ROLLBACK할 트랜잭션이 없다
+  db.exec('UPDATE 사원 SET 급여 = 급여 + 1 WHERE 사원번호 = 1011');
+  assert(fails('ROLLBACK'), '진행 중인 트랜잭션 없음');
+  eq(one('SELECT 급여 FROM 사원 WHERE 사원번호 = 1011'), [2401], '자동 확정');
   db.close();
 });
 
