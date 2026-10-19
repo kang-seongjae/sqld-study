@@ -2131,7 +2131,220 @@
             }
           ]
         },
-        { "group": "SQL 활용", "name": "윈도우 함수", "cards": [] },
+        {
+          "group": "SQL 활용",
+          "name": "윈도우 함수",
+          "cards": [
+            {
+              "id": "win-intro",
+              "title": "윈도우 함수란: 행을 줄이지 않는 계산",
+              "summary": "윈도우 함수는 행을 그대로 둔 채, 각 행 옆에 '여러 행을 함께 보고 계산한 값'을 붙여 준다. 모양은 함수() OVER (...)다.",
+              "desc": "GROUP BY·HAVING 절 단원에서 집계 함수를 쓰면 그룹 하나가 한 행으로 줄어드는 것을 보았다. 그래서 '사원 이름과 그 부서의 평균 급여를 나란히' 보는 일은 GROUP BY만으로는 어렵다. 이름을 SELECT에 쓰면 오라클에서 오류가 나기 때문이다.\n윈도우 함수가 이 문제를 푼다. 행 수는 그대로 두고, 행마다 '정해진 범위(윈도우)에 든 행들을 보고 계산한 값'을 새 열로 붙인다.\n기본 모양\n함수(인자) OVER (PARTITION BY 나눌열 ORDER BY 정렬열 윈도우범위)\n· OVER: 이 함수가 윈도우 함수라는 표시다. OVER ()처럼 괄호 안을 비우면 전체 행이 하나의 윈도우가 된다.\n· PARTITION BY: 윈도우를 나누는 기준. GROUP BY처럼 나누지만 행을 줄이지 않는다.\n· ORDER BY: 윈도우 안에서 행의 순서. 순위나 누적 합계를 구할 때 쓴다.\n· 윈도우 범위(ROWS / RANGE): 계산에 쓸 행의 범위(이 단원 다섯 번째 카드).\n윈도우 함수는 크게 순위 함수(RANK 등), 집계 함수(SUM, AVG 등을 OVER와 함께), 행 순서 함수(LAG, LEAD 등), 비율 함수(CUME_DIST 등)로 나뉜다. 오라클에서는 분석 함수(Analytic Function)라고도 부른다.",
+              "analogy": "반 성적표에 학생마다 '내 점수' 옆에 '우리 반 평균'을 함께 적어 주는 것과 같다. 반 평균을 내도 학생 명단은 줄지 않고, 모든 학생 줄에 같은 반 평균이 나란히 적힌다.",
+              "sql": "SELECT 이름, 부서번호, 급여,\n       SUM(급여) OVER () AS 전체합계,\n       AVG(급여) OVER (PARTITION BY 부서번호) AS 부서평균\nFROM 사원\nWHERE 부서번호 IS NOT NULL;",
+              "pitfalls": [
+                "윈도우 함수는 WHERE 절에 쓸 수 없다. WHERE가 처리될 때는 윈도우 함수 값이 아직 계산되지 않았기 때문이다(SELECT 기본 단원의 실행 순서). 윈도우 함수 결과로 거르려면 서브쿼리(인라인 뷰)로 감싼 뒤 바깥 WHERE에서 거른다.",
+                "예시의 전체합계가 51400이 아니라 49000인 것은 WHERE에서 부서번호가 NULL인 오인턴(2400)을 먼저 뺐기 때문이다. 윈도우 함수는 WHERE를 통과한 행만 본다.",
+                "PARTITION BY와 GROUP BY는 둘 다 '나눈다'는 점이 같지만, GROUP BY는 그룹마다 한 행으로 줄이고 PARTITION BY는 행 수를 그대로 둔다."
+              ],
+              "exam": "윈도우 함수의 문법 구조(OVER, PARTITION BY, ORDER BY, ROWS/RANGE)를 묻거나, GROUP BY와 윈도우 함수의 결과 행 수 차이를 묻는다. 윈도우 함수를 WHERE에 쓴 SQL을 오류로 고르는 문제도 나온다.",
+              "quiz": [
+                {
+                  "q": "사원 11명이 있는 테이블에 SELECT 이름, AVG(급여) OVER (PARTITION BY 부서번호) FROM 사원; 을 실행하면 결과 행 수는?",
+                  "choices": ["부서 수만큼", "1", "11", "부서 수 + 1"],
+                  "answer": 3,
+                  "explain": "윈도우 함수는 행을 줄이지 않는다. PARTITION BY는 평균을 계산할 범위만 나눌 뿐이라 결과는 11행 그대로이고, 같은 부서 사원에게는 같은 평균이 붙는다."
+                },
+                {
+                  "q": "윈도우 함수에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["OVER 절과 함께 쓴다", "PARTITION BY로 계산 범위를 나눌 수 있다", "WHERE 절에서 윈도우 함수의 결과로 바로 행을 거를 수 있다", "SUM, AVG 같은 집계 함수도 OVER와 함께 쓰면 윈도우 함수가 된다"],
+                  "answer": 3,
+                  "explain": "WHERE는 SELECT보다 먼저 처리되므로 그 안에 윈도우 함수를 쓸 수 없다. 서브쿼리로 감싼 뒤 바깥에서 걸러야 한다."
+                }
+              ]
+            },
+            {
+              "id": "win-rank",
+              "title": "순위 함수: RANK, DENSE_RANK, ROW_NUMBER",
+              "summary": "RANK는 동점이면 같은 순위를 주고 다음 순위를 건너뛴다. DENSE_RANK는 건너뛰지 않는다. ROW_NUMBER는 동점이어도 1, 2, 3…처럼 서로 다른 번호를 준다.",
+              "desc": "순위 함수는 OVER 안의 ORDER BY 순서대로 행에 순위를 매긴다.\n· RANK(): 값이 같으면 같은 순위다. 다음 순위는 동점인 행의 개수만큼 건너뛴다. 예: 1, 1, 3, 4\n· DENSE_RANK(): 값이 같으면 같은 순위다. 다음 순위를 건너뛰지 않는다. 예: 1, 1, 2, 3\n· ROW_NUMBER(): 값이 같아도 서로 다른 번호를 차례로 준다. 예: 1, 2, 3, 4\n예시 SQL은 부서별 인원을 세고(GROUP BY), 인원이 많은 순으로 세 가지 순위를 나란히 매긴다. 20번과 30번 부서가 4명으로 동점이라 차이가 잘 보인다.\n윈도우 함수는 GROUP BY가 끝난 뒤에 계산되므로, 이렇게 집계 결과(COUNT(*))를 기준으로 순위를 매길 수 있다.\n순위 함수의 괄호 안은 비워 둔다. 무엇으로 순위를 매길지는 OVER 안의 ORDER BY가 정한다.",
+              "analogy": "달리기 결승선과 같다. 두 명이 동시에 들어오면 RANK는 둘 다 1등, 다음 사람은 3등이다. DENSE_RANK는 다음 사람을 2등으로 친다. ROW_NUMBER는 사진 판독을 해서라도 1번, 2번 번호표를 따로 준다.",
+              "sql": "SELECT 부서번호, COUNT(*) AS 인원,\n       RANK()       OVER (ORDER BY COUNT(*) DESC) AS 순위_RANK,\n       DENSE_RANK() OVER (ORDER BY COUNT(*) DESC) AS 순위_DENSE,\n       ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS 순번\nFROM 사원\nGROUP BY 부서번호;",
+              "pitfalls": [
+                "ROW_NUMBER는 동점끼리 누가 앞 번호를 받을지 정해 두지 않는다. 예시에서 20번과 30번 중 어느 쪽이 1번이 될지는 보장되지 않는다. 순서를 고정하려면 ORDER BY COUNT(*) DESC, 부서번호 처럼 기준을 더 붙인다.",
+                "DENSE_RANK의 가장 큰 순위는 '서로 다른 값의 개수'와 같다. RANK의 가장 큰 순위는 건너뛴 만큼 더 커질 수 있다.",
+                "순위 함수 괄호 안에는 열을 넣지 않는다. RANK(급여) OVER (...)는 오류이고, RANK() OVER (ORDER BY 급여)로 쓴다."
+              ],
+              "oracle": [
+                "NULL이 섞인 순위: RANK() OVER (ORDER BY 커미션 DESC)를 매기면 오라클은 NULL을 가장 큰 값으로 보아 커미션이 NULL인 7명이 공동 1위, 박부장(500)이 8위가 된다. SQLite는 NULL을 가장 작은 값으로 보아 박부장이 1위, NULL인 7명은 공동 5위다(ORDER BY 단원의 NULL 정렬)."
+              ],
+              "exam": "동점이 있는 작은 표를 주고 RANK, DENSE_RANK, ROW_NUMBER의 결과를 고르게 하는 문제가 단골이다. 특히 동점 다음 순위가 몇인지 묻는다.",
+              "quiz": [
+                {
+                  "q": "점수가 100, 90, 90, 80 인 네 행에 DENSE_RANK() OVER (ORDER BY 점수 DESC)를 매겼을 때 80점의 순위는?",
+                  "choices": ["2", "3", "4", "5"],
+                  "answer": 2,
+                  "explain": "DENSE_RANK는 동점(90, 90)에 같은 2위를 주고 다음 순위를 건너뛰지 않으므로 80점은 3위다. RANK였다면 4위다."
+                },
+                {
+                  "q": "점수가 100, 90, 90, 80 일 때 RANK, DENSE_RANK, ROW_NUMBER(모두 점수 내림차순)로 매긴 80점의 순위를 차례로 쓰면?",
+                  "choices": ["4, 3, 4", "3, 3, 4", "4, 4, 4", "3, 2, 4"],
+                  "answer": 1,
+                  "explain": "RANK는 동점 두 개 다음을 건너뛰어 4, DENSE_RANK는 건너뛰지 않아 3, ROW_NUMBER는 동점과 상관없이 네 번째 행이라 4다."
+                }
+              ]
+            },
+            {
+              "id": "win-partition",
+              "title": "PARTITION BY로 그룹 안에서 계산하기",
+              "summary": "OVER 안에 PARTITION BY를 쓰면 그룹마다 따로 순위를 매기고 따로 계산한다. 그룹이 바뀌면 순위는 다시 1부터 시작한다.",
+              "desc": "GROUP BY·HAVING 절 단원에서 '그 부서에서 급여가 가장 높은 사람의 이름'은 GROUP BY만으로는 구할 수 없다고 했다. 윈도우 함수의 PARTITION BY가 그 답이다.\nROW_NUMBER() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC)\n· PARTITION BY 부서번호: 부서마다 윈도우를 따로 만든다.\n· ORDER BY 급여 DESC: 각 부서 안에서 급여가 높은 순으로 번호를 매긴다.\n부서가 바뀌면 번호는 다시 1부터 시작한다. 그래서 부서내순위가 1인 행이 '그 부서의 최고 급여자'다.\nPARTITION BY에 열을 여러 개 쓸 수도 있다. PARTITION BY 부서번호, 직급 은 '부서 안의 직급별'로 나눈다.\n순위 함수뿐 아니라 집계 함수에도 PARTITION BY를 쓴다. MAX(급여) OVER (PARTITION BY 부서번호)는 각 행 옆에 그 부서의 최고 급여를 붙인다.",
+              "analogy": "학교 전체 등수 대신 반별 등수를 매기는 것과 같다. 1반에도 1등이 있고 2반에도 1등이 있다. 반이 바뀌면 등수를 다시 1부터 센다.",
+              "sql": "SELECT 이름, 부서번호, 급여,\n       ROW_NUMBER() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC) AS 부서내순위,\n       MAX(급여) OVER (PARTITION BY 부서번호) AS 부서최고급여\nFROM 사원\nWHERE 부서번호 IS NOT NULL;",
+              "pitfalls": [
+                "OVER 안의 ORDER BY는 순위를 매기는 순서일 뿐, 결과 전체의 정렬을 보장하지 않는다. 결과를 보기 좋게 늘어놓으려면 문장 맨 끝에 ORDER BY를 따로 쓴다.",
+                "'부서내순위가 1인 행만' 보려고 WHERE 부서내순위 = 1 을 쓰면 오류다. 서브쿼리로 감싼 뒤 바깥에서 거른다(Top N 쿼리 단원).",
+                "PARTITION BY 기준 열이 NULL인 행들은 NULL끼리 하나의 파티션이 된다. GROUP BY에서 NULL이 한 그룹이 되는 것과 같다."
+              ],
+              "exam": "PARTITION BY가 있는 순위 함수의 결과에서 특정 행의 순위를 묻는다. 파티션이 바뀌면 순위가 1부터 다시 시작한다는 점을 확인하는 문제가 많다.",
+              "quiz": [
+                {
+                  "q": "예제 사원 테이블(부서번호 10, 20, 30, NULL)에 RANK() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC)를 매기면 순위가 1인 행은 몇 개인가? (같은 부서 안에 급여가 같은 사원은 없다)",
+                  "choices": ["1", "3", "4", "11"],
+                  "answer": 3,
+                  "explain": "파티션마다 1위가 하나씩 나온다. 10, 20, 30, NULL 네 파티션이 있고 파티션 안에 동점이 없으므로 1위는 4개다."
+                },
+                {
+                  "q": "SUM(급여) OVER (PARTITION BY 부서번호)에 대한 설명으로 옳은 것은?",
+                  "choices": ["부서 수만큼의 행이 나온다", "모든 행에 전체 사원의 급여 합계가 붙는다", "결과가 부서번호 순으로 정렬된다", "각 행 옆에 그 행이 속한 부서의 급여 합계가 붙는다"],
+                  "answer": 4,
+                  "explain": "PARTITION BY는 행을 줄이지 않고 합계를 계산할 범위만 부서별로 나눈다. 그래서 각 행에 자기 부서의 합계가 붙는다. 전체 합계는 OVER ()일 때다."
+                }
+              ]
+            },
+            {
+              "id": "win-cumulative",
+              "title": "집계 윈도우 함수와 누적 합계",
+              "summary": "SUM, AVG, COUNT, MAX, MIN도 OVER와 함께 쓰면 윈도우 함수가 된다. OVER 안에 ORDER BY를 넣으면 처음부터 현재 행까지의 누적 값이 된다.",
+              "desc": "집계 함수에 OVER를 붙이면 행을 줄이지 않고 계산한다. 이때 OVER 안에 ORDER BY가 있는지 없는지에 따라 결과가 크게 달라진다.\n· SUM(급여) OVER (): ORDER BY가 없으면 윈도우 전체의 합계다. 모든 행에 같은 값이 붙는다.\n· SUM(급여) OVER (ORDER BY 입사일): ORDER BY가 있으면 '첫 행부터 현재 행까지'의 합계, 즉 누적 합계가 된다.\nORDER BY를 쓰고 윈도우 범위를 따로 적지 않으면, 기본 범위로 'RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'(처음부터 현재 행까지)가 적용되기 때문이다. 범위는 다음 카드에서 자세히 본다.\n예시 SQL은 입사일 순으로 급여를 누적해 '이 사원이 입사했을 때까지 쌓인 월 급여 총액'을 보여 준다. 마지막 행의 누적급여 51400은 전체합계와 같다.\nPARTITION BY와 함께 쓰면 부서마다 따로 누적한다.",
+              "analogy": "적금 통장과 같다. 매달 넣은 돈(급여) 옆에 '지금까지 모인 총액'(누적 합계)이 찍힌다. 마지막 줄의 총액은 넣은 돈을 모두 더한 값과 같다.",
+              "sql": "SELECT 이름, 입사일, 급여,\n       SUM(급여) OVER (ORDER BY 입사일) AS 누적급여,\n       SUM(급여) OVER () AS 전체합계\nFROM 사원;",
+              "pitfalls": [
+                "OVER () 안에 ORDER BY 하나를 넣었을 뿐인데 '전체 합계'가 '누적 합계'로 바뀐다. 시험에서 가장 많이 노리는 차이다.",
+                "ORDER BY 열에 같은 값이 여러 행 있으면, 기본 범위(RANGE)는 같은 값의 행들을 한꺼번에 더한다. 그래서 동점 행들의 누적 값이 모두 같게 나온다(다음 카드).",
+                "COUNT(*) OVER (ORDER BY 입사일)는 '지금까지 몇 명'인 누적 인원, MAX(급여) OVER (ORDER BY 입사일)는 '지금까지 나온 최고 급여'다."
+              ],
+              "exam": "OVER 안에 ORDER BY가 있을 때와 없을 때 SUM 결과가 어떻게 다른지, 누적 합계의 특정 행 값을 계산하게 하는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "값이 10, 20, 30 인 세 행에 SUM(값) OVER (ORDER BY 값)을 매기면 30인 행의 결과는?",
+                  "choices": ["30", "50", "60", "10"],
+                  "answer": 3,
+                  "explain": "ORDER BY가 있으면 처음부터 현재 행까지 더한다. 10 + 20 + 30 = 60이다. 20인 행은 30, 10인 행은 10이다."
+                },
+                {
+                  "q": "SUM(급여) OVER ()와 SUM(급여) OVER (ORDER BY 입사일)의 차이로 옳은 것은?",
+                  "choices": ["앞은 모든 행에 전체 합계, 뒤는 입사일 순 누적 합계가 붙는다", "둘 다 모든 행에 전체 합계가 붙는다", "앞은 누적 합계, 뒤는 전체 합계가 붙는다", "뒤쪽은 입사일 순으로 묶여 결과 행 수가 줄어든다"],
+                  "answer": 1,
+                  "explain": "ORDER BY가 없으면 윈도우 전체가 계산 범위라 전체 합계다. ORDER BY가 있으면 기본 범위가 '처음부터 현재 행까지'라 누적 합계다. 어느 쪽이든 행 수는 줄지 않는다."
+                }
+              ]
+            },
+            {
+              "id": "win-frame",
+              "title": "윈도우 범위: ROWS와 RANGE",
+              "summary": "ROWS BETWEEN … AND …로 계산에 쓸 행의 범위를 정한다. ROWS는 '몇 행'을 기준으로, RANGE는 'ORDER BY 값'을 기준으로 범위를 센다.",
+              "desc": "OVER 안의 ORDER BY 뒤에 윈도우 범위(프레임)를 적을 수 있다.\nROWS BETWEEN 시작 AND 끝\n시작과 끝에 쓸 수 있는 것\n· UNBOUNDED PRECEDING: 파티션의 첫 행\n· n PRECEDING: 현재 행보다 n행 앞\n· CURRENT ROW: 현재 행\n· n FOLLOWING: 현재 행보다 n행 뒤\n· UNBOUNDED FOLLOWING: 파티션의 마지막 행\n예: ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING → 앞 행, 현재 행, 뒤 행 세 개로 계산한다(이동 평균에 쓴다).\nROWS와 RANGE의 차이\n· ROWS: 물리적인 행 개수로 센다. ORDER BY 값이 같아도 행마다 따로다.\n· RANGE: ORDER BY 값을 기준으로 센다. ORDER BY 값이 같은 행들은 한 덩어리로 함께 범위에 들어간다.\n예시 SQL은 부서번호 순으로 급여를 누적하면서 두 방식을 비교한다. 10번 부서의 두 사원은 RANGE에서는 둘 다 12100(두 사람의 합)이지만, ROWS에서는 한 행씩 쌓여 9000, 12100이 된다(같은 부서 안의 순서는 정해져 있지 않다).",
+              "analogy": "ROWS는 '내 앞 한 사람, 뒤 한 사람'처럼 사람 수로 세는 것이고, RANGE는 '나와 같은 반인 사람은 모두 함께'처럼 값으로 묶어 세는 것이다.",
+              "sql": "SELECT 이름, 부서번호, 급여,\n       SUM(급여) OVER (ORDER BY 부서번호) AS RANGE누적,\n       SUM(급여) OVER (ORDER BY 부서번호\n                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS ROWS누적\nFROM 사원\nWHERE 부서번호 IS NOT NULL;",
+              "pitfalls": [
+                "ORDER BY만 쓰고 범위를 생략하면 기본값은 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW다. ROWS가 아니라 RANGE라서 동점 행이 한꺼번에 더해진다.",
+                "범위의 시작이 끝보다 뒤에 오면 안 된다. ROWS BETWEEN CURRENT ROW AND 1 PRECEDING 은 오류다.",
+                "BETWEEN 없이 ROWS 1 PRECEDING 처럼 시작만 쓰면 '1행 앞부터 현재 행까지'라는 뜻이다.",
+                "범위는 집계·행 순서 함수에서 쓰는 것이다. RANK, ROW_NUMBER 같은 순위 함수에는 범위를 쓰지 않는다."
+              ],
+              "exam": "ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING 같은 범위로 계산한 SUM·AVG 값을 묻거나, ORDER BY 값이 같은 행이 있을 때 ROWS와 RANGE의 결과 차이를 묻는다.",
+              "quiz": [
+                {
+                  "q": "값이 10, 20, 30, 40 인 네 행에 SUM(값) OVER (ORDER BY 값 ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)을 매기면 10인 행의 결과는?",
+                  "choices": ["10", "30", "60", "100"],
+                  "answer": 2,
+                  "explain": "10인 행은 맨 앞이라 앞 행이 없다. 현재 행(10)과 뒤 행(20)만 더해 30이다. 20인 행이라면 10 + 20 + 30 = 60이다."
+                },
+                {
+                  "q": "(부서번호, 급여)가 (10, 100), (10, 200), (20, 300) 인 세 행에 SUM(급여) OVER (ORDER BY 부서번호)를 매겼을 때, (10, 100) 행의 결과는?",
+                  "choices": ["100", "300", "600", "200"],
+                  "answer": 2,
+                  "explain": "범위를 생략했으므로 기본값 RANGE가 적용되어, ORDER BY 값(부서번호 10)이 같은 두 행이 한꺼번에 더해진다. 100 + 200 = 300이다. ROWS로 범위를 적었다면 100이다."
+                }
+              ]
+            },
+            {
+              "id": "win-lag-lead",
+              "title": "행 순서 함수: LAG, LEAD, FIRST_VALUE, LAST_VALUE",
+              "summary": "LAG는 앞 행의 값을, LEAD는 뒤 행의 값을 가져온다. FIRST_VALUE와 LAST_VALUE는 윈도우 범위의 첫 값과 마지막 값을 가져온다.",
+              "desc": "행 순서 함수는 '정렬된 순서에서 다른 행에 있는 값'을 현재 행으로 끌어온다.\n· LAG(열, n, 기본값): n행 앞의 값. n을 빼면 1이다. 앞 행이 없으면 기본값(빼면 NULL).\n· LEAD(열, n, 기본값): n행 뒤의 값.\n· FIRST_VALUE(열): 윈도우 범위에서 첫 행의 값.\n· LAST_VALUE(열): 윈도우 범위에서 마지막 행의 값.\n예시 SQL은 입사일 순으로 '바로 앞에 입사한 사람의 급여'(LAG), '바로 다음에 입사한 사람'(LEAD), '가장 먼저 입사한 사람'(FIRST_VALUE)을 붙인다. 첫 행의 LAG와 마지막 행의 LEAD는 가져올 행이 없어서 NULL이다.\nLAST_VALUE에는 함정이 있다. 범위를 생략하면 기본 범위가 '처음부터 현재 행까지'라서, 범위의 마지막 행은 늘 현재 행 자신이다. 진짜 마지막 값을 원하면 ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING 으로 범위를 끝까지 넓힌다. 예시의 마지막 두 열이 그 차이를 보여 준다.",
+              "analogy": "줄 서 있는 사람에게 '바로 앞사람 번호표'(LAG)와 '바로 뒷사람 번호표'(LEAD)를 물어보는 것과 같다. 맨 앞사람은 앞사람이 없으니 '없음'이라고 답한다.",
+              "sql": "SELECT 이름, 입사일, 급여,\n       LAG(급여) OVER (ORDER BY 입사일) AS 앞사람급여,\n       LEAD(이름) OVER (ORDER BY 입사일) AS 다음입사자,\n       FIRST_VALUE(이름) OVER (ORDER BY 입사일) AS 첫입사자,\n       LAST_VALUE(이름) OVER (ORDER BY 입사일) AS 기본범위_마지막,\n       LAST_VALUE(이름) OVER (ORDER BY 입사일\n           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS 전체범위_마지막\nFROM 사원;",
+              "pitfalls": [
+                "LAST_VALUE를 범위 없이 쓰면 현재 행의 값이 나온다. 예시의 기본범위_마지막 열이 모든 행에서 자기 이름인 이유다.",
+                "LAG(급여, 2, 0)처럼 세 번째 인자를 주면 가져올 행이 없을 때 NULL 대신 0이 나온다.",
+                "LAG·LEAD에는 OVER 안의 ORDER BY를 꼭 쓴다. '앞'과 '뒤'를 정하는 기준이기 때문이다."
+              ],
+              "oracle": [
+                "ORDER BY 없는 LAG·LEAD: 오라클은 LAG·LEAD의 OVER 안에 ORDER BY가 없으면 오류다. SQLite는 LAG(급여) OVER ()도 실행해 주지만, 순서가 정해져 있지 않아 의미 없는 값이 나온다.",
+                "IGNORE NULLS: 오라클은 FIRST_VALUE(커미션 IGNORE NULLS)처럼 NULL을 건너뛰고 첫 값을 찾을 수 있다. SQLite에는 이 문법이 없어서 오류다."
+              ],
+              "exam": "LAG·LEAD 결과에서 특정 행의 값을 고르는 문제, LAST_VALUE를 기본 범위로 썼을 때 결과가 현재 행 값이 된다는 점을 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "값이 100, 200, 300 인 세 행에 LAG(값, 1, 0) OVER (ORDER BY 값)을 매긴 결과를 값 순서대로 쓰면?",
+                  "choices": ["NULL, 100, 200", "100, 200, 300", "200, 300, 0", "0, 100, 200"],
+                  "answer": 4,
+                  "explain": "LAG는 한 행 앞의 값을 가져온다. 첫 행은 앞 행이 없으므로 세 번째 인자인 기본값 0이 나오고, 나머지는 100, 200이다."
+                },
+                {
+                  "q": "LAST_VALUE(이름) OVER (ORDER BY 입사일)처럼 범위를 생략했을 때 결과로 옳은 것은?",
+                  "choices": ["모든 행에 가장 늦게 입사한 사람의 이름이 나온다", "모든 행에 가장 먼저 입사한 사람의 이름이 나온다", "각 행에 그 행 자신의 이름이 나온다", "오류가 난다"],
+                  "answer": 3,
+                  "explain": "ORDER BY가 있고 범위가 없으면 기본 범위는 '처음부터 현재 행까지'다. 그 범위의 마지막 행은 현재 행이라 자기 이름이 나온다."
+                }
+              ]
+            },
+            {
+              "id": "win-ratio",
+              "title": "비율 함수: RATIO_TO_REPORT, PERCENT_RANK, CUME_DIST, NTILE",
+              "summary": "전체에서 차지하는 비율(RATIO_TO_REPORT), 백분위 순위(PERCENT_RANK), 누적 분포(CUME_DIST), N등분한 묶음 번호(NTILE)를 구한다.",
+              "desc": "· RATIO_TO_REPORT(열) OVER (): 그 행의 값이 전체 합계에서 차지하는 비율(0~1). 오라클 함수다.\n· PERCENT_RANK() OVER (ORDER BY 열): (순위 - 1) ÷ (전체 행 수 - 1). 첫 행은 0, 마지막 행은 1이다.\n· CUME_DIST() OVER (ORDER BY 열): 현재 행의 값 이하인 행이 전체에서 차지하는 비율. 마지막 행은 1이다.\n· NTILE(n) OVER (ORDER BY 열): 행을 n개 묶음으로 최대한 고르게 나누고 묶음 번호(1~n)를 준다. 나누어떨어지지 않으면 앞 묶음부터 한 행씩 더 가진다.\n예시 SQL에서 11명을 NTILE(4)로 나누면 11 ÷ 4 = 2 나머지 3이라, 앞의 세 묶음이 3명씩, 마지막 묶음이 2명이다.\nRATIO_TO_REPORT는 SQLite에 없어서, 예시에서는 급여 * 1.0 / SUM(급여) OVER () 로 같은 값을 계산한다.",
+              "analogy": "NTILE(4)는 반 학생을 성적순으로 줄 세운 뒤 네 모둠으로 나누는 것과 같다. 11명이면 앞의 세 모둠은 3명씩, 마지막 모둠은 2명이다.",
+              "sql": "SELECT 이름, 급여,\n       ROUND(급여 * 1.0 / SUM(급여) OVER (), 3) AS 급여비율,\n       ROUND(PERCENT_RANK() OVER (ORDER BY 급여), 2) AS 백분위순위,\n       ROUND(CUME_DIST() OVER (ORDER BY 급여), 2) AS 누적분포,\n       NTILE(4) OVER (ORDER BY 급여 DESC) AS 네묶음\nFROM 사원;",
+              "pitfalls": [
+                "NTILE은 남는 행을 앞 묶음부터 하나씩 나눠 준다. 10행을 NTILE(3)으로 나누면 4, 3, 3행이다.",
+                "PERCENT_RANK는 첫 행이 0에서 시작하지만, CUME_DIST는 0이 나오지 않는다(첫 행도 1 ÷ 전체 행 수). 두 값을 헷갈리지 말자.",
+                "비율을 직접 계산할 때 SQLite에서는 급여 / SUM(급여) OVER () 가 정수 나눗셈이 되어 모두 0이 나온다. 1.0을 곱해 소수로 바꿔야 한다(SELECT 기본 단원의 정수 나눗셈)."
+              ],
+              "oracle": [
+                "RATIO_TO_REPORT: 오라클에만 있는 함수라 SQLite에서는 오류다. 연습창에서는 값 * 1.0 / SUM(값) OVER ()로 대신한다.",
+                "정수 나눗셈: 오라클은 급여 / SUM(급여) OVER () 가 소수 비율로 나오지만, SQLite는 정수끼리 나누어 0이 된다."
+              ],
+              "exam": "NTILE로 나눴을 때 각 묶음의 행 수, CUME_DIST·PERCENT_RANK의 값을 작은 표에서 계산하게 하는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "10개 행에 NTILE(4) OVER (ORDER BY 값)을 매겼을 때 1번 묶음에 들어가는 행 수는?",
+                  "choices": ["2", "3", "4", "5"],
+                  "answer": 2,
+                  "explain": "10 ÷ 4 = 2 나머지 2다. 남는 2행을 앞 묶음부터 하나씩 더 주므로 1·2번 묶음은 3행, 3·4번 묶음은 2행이다."
+                },
+                {
+                  "q": "값이 10, 20, 30, 40, 50 인 다섯 행에 CUME_DIST() OVER (ORDER BY 값)을 매기면 30인 행의 결과는?",
+                  "choices": ["0.4", "0.5", "0.6", "0.75"],
+                  "answer": 3,
+                  "explain": "CUME_DIST는 현재 값 이하인 행의 비율이다. 30 이하는 10, 20, 30 세 행이라 3 ÷ 5 = 0.6이다. PERCENT_RANK였다면 (3 - 1) ÷ (5 - 1) = 0.5다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "SQL 활용", "name": "Top N 쿼리", "cards": [] },
         { "group": "SQL 활용", "name": "계층형 질의와 셀프 조인", "cards": [] },
         { "group": "SQL 활용", "name": "PIVOT 절과 UNPIVOT 절", "cards": [] },

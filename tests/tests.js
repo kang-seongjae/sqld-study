@@ -87,6 +87,7 @@ const DONE_UNITS = [
   '서브쿼리',
   '집합 연산자',
   '그룹 함수',
+  '윈도우 함수',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -482,6 +483,52 @@ test('그룹 함수 단원: 카드·문제에 적은 값과 SQLite 동작', asyn
   db.close();
 });
 
+test('윈도우 함수 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  // 윈도우 함수란: 행 수 그대로, WHERE 뒤의 행만 본다
+  eq(rows('SELECT 이름, AVG(급여) OVER (PARTITION BY 부서번호) FROM 사원').length, 11);
+  eq(one('SELECT SUM(급여) OVER () FROM 사원 WHERE 부서번호 IS NOT NULL'), [49000]);
+  eq(one('SELECT SUM(급여) FROM 사원'), [51400]);
+  // 순위 함수: 20·30번 부서 4명 동점
+  eq(rows('SELECT COUNT(*), RANK() OVER (ORDER BY COUNT(*) DESC), DENSE_RANK() OVER (ORDER BY COUNT(*) DESC), ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC, 부서번호) FROM 사원 GROUP BY 부서번호'),
+    [[4, 1, 1, 1], [4, 1, 1, 2], [2, 3, 2, 3], [1, 4, 3, 4]]);
+  eq(rows('WITH t(v) AS (VALUES (100), (90), (90), (80)) SELECT RANK() OVER (ORDER BY v DESC), DENSE_RANK() OVER (ORDER BY v DESC), ROW_NUMBER() OVER (ORDER BY v DESC) FROM t')[3], [4, 3, 4]);
+  // NULL은 SQLite에서 DESC 맨 뒤: 박부장 1위, NULL 7명 공동 5위
+  eq(rows("SELECT 이름 FROM (SELECT 이름, RANK() OVER (ORDER BY 커미션 DESC) AS r FROM 사원) WHERE r = 1").flat(), ['박부장']);
+  eq(one('SELECT COUNT(*) FROM (SELECT 커미션, RANK() OVER (ORDER BY 커미션 DESC) AS r FROM 사원) WHERE 커미션 IS NULL AND r = 5'), [7]);
+  // PARTITION BY
+  eq(one('SELECT COUNT(*) FROM (SELECT RANK() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC) AS r FROM 사원) WHERE r = 1'), [4]);
+  eq(rows('SELECT 이름 FROM (SELECT 이름, ROW_NUMBER() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC) AS r FROM 사원 WHERE 부서번호 IS NOT NULL) WHERE r = 1 ORDER BY 이름').flat(), ['김대표', '박부장', '이부장']);
+  // 누적 합계
+  const cum = rows('SELECT SUM(급여) OVER (ORDER BY 입사일) FROM 사원').flat();
+  eq([cum[0], cum[10]], [9000, 51400]);
+  eq(rows('WITH t(v) AS (VALUES (10), (20), (30)) SELECT SUM(v) OVER (ORDER BY v) FROM t').flat(), [10, 30, 60]);
+  // ROWS와 RANGE
+  eq(rows('SELECT SUM(급여) OVER (ORDER BY 부서번호) FROM 사원 WHERE 부서번호 = 10').flat(), [12100, 12100]);
+  eq(rows('SELECT SUM(급여) OVER (ORDER BY 부서번호 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM 사원 WHERE 부서번호 = 10').flat().sort((a, b) => a - b), [9000, 12100]);
+  eq(rows('WITH t(v) AS (VALUES (10), (20), (30), (40)) SELECT SUM(v) OVER (ORDER BY v ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t').flat(), [30, 60, 90, 70]);
+  eq(rows('WITH t(d, s) AS (VALUES (10, 100), (10, 200), (20, 300)) SELECT SUM(s) OVER (ORDER BY d) FROM t').flat(), [300, 300, 600]);
+  // LAG, LEAD, FIRST_VALUE, LAST_VALUE
+  eq(rows('WITH t(v) AS (VALUES (100), (200), (300)) SELECT LAG(v, 1, 0) OVER (ORDER BY v) FROM t').flat(), [0, 100, 200]);
+  eq(rows('SELECT LAG(급여) OVER (ORDER BY 입사일), LEAD(이름) OVER (ORDER BY 입사일) FROM 사원')[0], [null, '이부장']);
+  eq(rows('SELECT 이름, LAST_VALUE(이름) OVER (ORDER BY 입사일) FROM 사원').every(([a, b]) => a === b), true, 'LAST_VALUE 기본 범위는 자기 자신');
+  eq(one('SELECT LAST_VALUE(이름) OVER (ORDER BY 입사일 ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM 사원'), ['오인턴']);
+  // 비율 함수
+  eq(rows('SELECT g, COUNT(*) FROM (SELECT NTILE(4) OVER (ORDER BY 급여 DESC) AS g FROM 사원) GROUP BY g'), [[1, 3], [2, 3], [3, 3], [4, 2]]);
+  eq(rows('WITH t(v) AS (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10)) SELECT g, COUNT(*) FROM (SELECT NTILE(3) OVER (ORDER BY v) AS g FROM t) GROUP BY g').map((r) => r[1]), [4, 3, 3]);
+  eq(rows('WITH t(v) AS (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10)) SELECT g, COUNT(*) FROM (SELECT NTILE(4) OVER (ORDER BY v) AS g FROM t) GROUP BY g').map((r) => r[1]), [3, 3, 2, 2]);
+  eq(rows('WITH t(v) AS (VALUES (10), (20), (30), (40), (50)) SELECT CUME_DIST() OVER (ORDER BY v), PERCENT_RANK() OVER (ORDER BY v) FROM t')[2], [0.6, 0.5]);
+  eq(one('SELECT a, b FROM (SELECT 사원번호, 급여 / SUM(급여) OVER () AS a, ROUND(급여 * 1.0 / SUM(급여) OVER (), 3) AS b FROM 사원) WHERE 사원번호 = 1001'), [0, 0.175], 'SQLite 정수 나눗셈');
+  // 오라클과 다르다고 적은 SQLite 동작, 오류
+  eq(rows('SELECT LAG(급여) OVER () FROM 사원').length, 11, 'ORDER BY 없는 LAG 허용');
+  assert(fails('SELECT RATIO_TO_REPORT(급여) OVER () FROM 사원'), 'RATIO_TO_REPORT 없음');
+  assert(fails('SELECT FIRST_VALUE(커미션 IGNORE NULLS) OVER (ORDER BY 입사일) FROM 사원'), 'IGNORE NULLS 없음');
+  assert(fails('SELECT 이름 FROM 사원 WHERE ROW_NUMBER() OVER (ORDER BY 급여) = 1'), 'WHERE에 윈도우 함수');
+  assert(fails('SELECT RANK(급여) OVER (ORDER BY 급여) FROM 사원'), 'RANK(열)');
+  assert(fails('SELECT SUM(급여) OVER (ORDER BY 급여 ROWS BETWEEN CURRENT ROW AND 1 PRECEDING) FROM 사원'), '범위 거꾸로');
+  db.close();
+});
+
 // ---------- 실제 앱 화면 (iframe) ----------
 
 async function openApp(ns, width, height, hash = 'cards') {
@@ -578,6 +625,25 @@ test('카드 화면: 처음엔 SELECT 단원, 항목별 구역, 실행 결과, �
   const q2 = byText.get(card().querySelector('.card-quiz .question').textContent);
   key(w, d.body, String(q2.answer === 1 ? 2 : 1));
   eq(d.querySelector('#wrong-count').textContent, '1', '카드에서 틀려도 오답노트에');
+});
+
+test('카드 화면: 표(figures)가 있는 카드는 표와 그림 구역에 표를 그린다', async () => {
+  const f = await openApp('e2e-figure', 1280, 900);
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  const sel = d.querySelector('#pick-unit');
+  sel.value = [...sel.options].find((o) => o.textContent.startsWith('그룹 함수')).value;
+  sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+  [...d.querySelectorAll('.card-nav button')].find((b) => b.textContent.includes('CUBE')).click();
+  const card = d.querySelector('#view-cards .card');
+  eq(card.dataset.card, 'grp-cube');
+  const titles = [...card.querySelectorAll('.sec-title')].map((e) => e.textContent);
+  assert(titles.indexOf('표와 그림으로 보기') === titles.indexOf('비유로 이해하기') + 1, titles.join(', '));
+  const fig = card.querySelector('.sec-figure figure');
+  assert(fig.querySelector('figcaption').textContent.includes('CUBE'), '표 제목');
+  eq(fig.querySelectorAll('tbody tr').length, 9, '표의 행');
+  eq(fig.querySelectorAll('td.null').length, 6, 'null 칸은 NULL로 표시');
+  assert(fig.querySelector('.figure-note'), '표 아래 설명');
 });
 
 test('SQL: 오류는 빨간 메시지로, 수정문은 바뀐 행 수로, 초기화하면 원래대로', async () => {
