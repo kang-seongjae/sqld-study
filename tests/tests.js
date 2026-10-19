@@ -1258,6 +1258,22 @@ test('SQL: 오류는 빨간 메시지로, 수정문은 바뀐 행 수로, 초기
   eq(d.querySelector('#sql-result td').textContent, '11');
 });
 
+test('퀴즈 채점 화면: 10문제를 다 풀면 점수, 빈 조건이 글자로 찍히지 않음', async () => {
+  const data = await (await fetch('../data/cards.json')).json();
+  const byText = new Map(L.collectQuestions(data).map((q) => [q.q, q]));
+  const f = await openApp('e2e-score', 1280, 800, 'quiz');
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  for (let i = 0; i < 10; i++) {
+    const q = byText.get(d.querySelector('#view-quiz .question').textContent);
+    key(w, d.body, String(i < 3 ? (q.answer % 4) + 1 : q.answer)); // 앞의 3문제만 틀림
+    key(w, d.body, 'Enter');
+  }
+  const v = d.querySelector('#view-quiz');
+  eq(v.querySelector('.score').textContent, '7 / 10');
+  assert(!v.textContent.includes('false'), '빈 조건이 글자로 찍히지 않음');
+});
+
 test('퀴즈: 숫자 키로 답하고, 틀리면 오답노트, 다시 맞히면 빠짐', async () => {
   const data = await (await fetch('../data/cards.json')).json();
   const byText = new Map(L.collectQuestions(data).map((q) => [q.q, q]));

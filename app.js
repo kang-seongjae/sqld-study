@@ -480,8 +480,9 @@ function renderQuiz() {
       v.append(
         h('h3', {}, `오늘의 퀴즈 끝! (${L.dateKey()})`),
         h('p', { class: 'score' }, `${scoreOf(s)} / ${s.ids.length}`),
-        s.ids.length < L.DAILY_COUNT && h('p', { class: 'hint' },
-          `지금은 퀴즈가 ${questions.length}문제뿐이라 ${s.ids.length}문제만 나왔어요. 카드에 퀴즈를 더 붙이면 하루 ${L.DAILY_COUNT}문제까지 나와요.`),
+        // v.append는 false를 글자로 찍으므로 빈 문자열로 넘긴다
+        s.ids.length < L.DAILY_COUNT ? h('p', { class: 'hint' },
+          `지금은 퀴즈가 ${questions.length}문제뿐이라 ${s.ids.length}문제만 나왔어요. 카드에 퀴즈를 더 붙이면 하루 ${L.DAILY_COUNT}문제까지 나와요.`) : '',
         h('div', { class: 'row' },
           h('button', { type: 'button', onclick: () => {
             for (const id of s.ids) delete s.answers[id];
