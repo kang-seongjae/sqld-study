@@ -82,6 +82,7 @@ const DONE_UNITS = [
   '함수',
   'GROUP BY·HAVING 절',
   'ORDER BY 절',
+  '조인',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -319,6 +320,25 @@ test('ORDER BY 단원: 카드·문제에 적은 값과 SQLite 동작', async () 
   eq(rows('SELECT DISTINCT 직급 FROM 사원 ORDER BY 급여').length, 6, 'DISTINCT + 목록에 없는 열');
   eq(rows('SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY 부서번호 ORDER BY 급여').length, 4, 'GROUP BY + 없는 열 정렬');
   assert(fails('SELECT 이름, 급여 FROM 사원 ORDER BY 3'), '위치 번호 범위 초과');
+  db.close();
+});
+
+test('조인 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(one('SELECT COUNT(*) FROM 급여등급'), [5]);
+  eq(rows('SELECT 사원.이름 FROM 사원, 부서 WHERE 사원.부서번호 = 부서.부서번호').length, 10, '등가 조인 10행');
+  eq(one('SELECT COUNT(*) FROM 사원, 부서'), [44]);
+  eq(rows('SELECT e.이름, d.부서명 FROM 사원 e, 부서 d WHERE e.사원번호 = 1001').length, 4, '김대표 × 4');
+  eq(rows("SELECT e.이름 FROM 사원 e, 부서 d WHERE e.부서번호 = d.부서번호 AND d.지역 = '판교'").length, 4);
+  const grades = rows('SELECT g.등급, COUNT(*) FROM 사원 e, 급여등급 g WHERE e.급여 BETWEEN g.최저급여 AND g.최고급여 GROUP BY g.등급 ORDER BY 1');
+  eq(grades, [[1, 1], [2, 4], [3, 2], [4, 3], [5, 1]], '등급별 인원(빈틈·겹침 없음)');
+  eq(one("SELECT g.등급 FROM 사원 e, 급여등급 g WHERE e.급여 BETWEEN g.최저급여 AND g.최고급여 AND e.이름 = '최과장'"), [4]);
+  eq(rows('SELECT 1 FROM 사원 e, 부서 d, 급여등급 g WHERE e.부서번호 = d.부서번호 AND e.급여 BETWEEN g.최저급여 AND g.최고급여').length, 10);
+  eq(rows('SELECT 1 FROM 사원 e, 부서 d, 급여등급 g WHERE e.부서번호 = d.부서번호').length, 50, '조건 하나 빠짐');
+  assert(fails('SELECT 이름, 부서번호 FROM 사원 e, 부서 d WHERE e.부서번호 = d.부서번호'), '모호한 열');
+  assert(fails('SELECT 사원.이름 FROM 사원 e, 부서 d WHERE e.부서번호 = d.부서번호'), '별칭 뒤 원래 이름');
+  assert(fails('SELECT 1 FROM 사원 e, 부서 d WHERE e.부서번호(+) = d.부서번호'), '(+) 없음');
+  eq(rows('SELECT 1 FROM 사원 AS e, 부서 AS d WHERE e.부서번호 = d.부서번호').length, 10, '테이블 별칭 AS 허용');
   db.close();
 });
 
