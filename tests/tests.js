@@ -84,6 +84,7 @@ const DONE_UNITS = [
   'ORDER BY 절',
   '조인',
   '표준 조인',
+  '서브쿼리',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -378,6 +379,44 @@ test('표준 조인 단원: 카드·문제에 적은 값과 SQLite 동작', asyn
   eq(rows('SELECT e.부서번호 FROM 사원 e NATURAL JOIN 부서 d').length, 10, 'NATURAL 열에 별칭');
   assert(fails('SELECT 1 FROM 사원 NATURAL JOIN 부서 USING (부서번호)'), 'NATURAL + USING');
   assert(fails('SELECT 1 FROM 사원 JOIN 부서 USING 부서번호'), 'USING 괄호');
+  db.close();
+});
+
+test('서브쿼리 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(rows('SELECT 이름 FROM 사원 WHERE 급여 > (SELECT AVG(급여) FROM 사원)').length, 5, '평균보다 많이 받는 사원');
+  eq(rows("SELECT 이름 FROM 사원 WHERE 부서번호 = (SELECT 부서번호 FROM 사원 WHERE 이름 = '최과장')").length, 4);
+  eq(rows("SELECT 이름 FROM 사원 WHERE 급여 = (SELECT 급여 FROM 사원 WHERE 이름 = '없는사람')").length, 0, '서브쿼리 0행');
+  eq(rows('SELECT 부서번호 FROM 사원 GROUP BY 부서번호 HAVING AVG(급여) > (SELECT AVG(급여) FROM 사원) ORDER BY 1').flat(), [10, 20]);
+  eq(rows("SELECT 이름 FROM 사원 WHERE 부서번호 IN (SELECT 부서번호 FROM 부서 WHERE 지역 IN ('판교', '부산'))").length, 8);
+  eq(one('SELECT COUNT(*) FROM 사원 WHERE 급여 > (SELECT MIN(급여) FROM 사원 WHERE 부서번호 = 30)'), [8], '> ANY 대신 MIN');
+  eq(rows('SELECT 이름 FROM 사원 WHERE 급여 > (SELECT MAX(급여) FROM 사원 WHERE 부서번호 = 30) ORDER BY 급여').flat(), ['이부장', '김대표'], '> ALL 대신 MAX');
+  eq(rows('SELECT 이름 FROM 사원 WHERE (부서번호, 급여) IN (SELECT 부서번호, MAX(급여) FROM 사원 GROUP BY 부서번호) ORDER BY 부서번호').flat(), ['김대표', '이부장', '박부장'], '다중열');
+  eq(rows('SELECT e.이름 FROM 사원 e WHERE e.급여 > (SELECT AVG(x.급여) FROM 사원 x WHERE x.부서번호 = e.부서번호)').length, 5, '연관 서브쿼리');
+  eq(rows('SELECT e.이름 FROM 사원 e WHERE e.급여 > (SELECT AVG(x.급여) FROM 사원 x WHERE x.부서번호 = 부서번호)').length, 4, '바깥 별칭 빠뜨림');
+  eq(one('SELECT AVG(급여) FROM 사원 WHERE 부서번호 IS NOT NULL'), [4900]);
+  eq(rows('SELECT d.부서명 FROM 부서 d WHERE EXISTS (SELECT 1 FROM 사원 e WHERE e.부서번호 = d.부서번호)').length, 3);
+  eq(rows('SELECT d.부서명 FROM 부서 d WHERE NOT EXISTS (SELECT 1 FROM 사원 e WHERE e.부서번호 = d.부서번호)').flat(), ['연구']);
+  eq(one('SELECT COUNT(*) FROM 부서 WHERE 부서번호 NOT IN (SELECT 부서번호 FROM 사원)'), [0], 'NOT IN과 NULL');
+  eq(rows('SELECT d.부서명 FROM 부서 d JOIN (SELECT 부서번호, COUNT(*) AS 인원 FROM 사원 GROUP BY 부서번호) a ON d.부서번호 = a.부서번호').length, 3, '인라인 뷰 조인');
+  eq(rows('SELECT 이름 FROM (SELECT 이름, 급여 * 12 AS 연봉 FROM 사원) t WHERE 연봉 >= 60000').length, 4);
+  eq(rows('SELECT e.이름, (SELECT d.부서명 FROM 부서 d WHERE d.부서번호 = e.부서번호) FROM 사원 e').length, 11, '스칼라 서브쿼리는 행 수 유지');
+  eq(one('SELECT (SELECT d.부서명 FROM 부서 d WHERE d.부서번호 = e.부서번호) FROM 사원 e WHERE e.사원번호 = 1011'), [null]);
+  db.exec('CREATE VIEW 부서별현황 AS SELECT d.부서명, COUNT(e.사원번호) AS 인원 FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 GROUP BY d.부서번호, d.부서명');
+  eq(rows('SELECT 부서명 FROM 부서별현황 WHERE 인원 >= 2').length, 3);
+  eq(one("SELECT 인원 FROM 부서별현황 WHERE 부서명 = '연구'"), [0], 'COUNT(e.사원번호)는 0');
+  // 오라클과 다르다고 적은 SQLite 동작
+  eq(rows("SELECT 이름 FROM 사원 WHERE 부서번호 = (SELECT 부서번호 FROM 사원 WHERE 직급 = '과장')").length, 4, '여러 행 서브쿼리도 첫 행만 씀');
+  eq(rows('SELECT 이름 FROM 사원 WHERE 급여 IN (SELECT 급여 FROM 사원 ORDER BY 급여 DESC)').length, 11, '서브쿼리 안 ORDER BY 허용');
+  eq(rows('SELECT * FROM (SELECT 부서번호 FROM 사원 GROUP BY 부서번호) AS a').length, 4, '인라인 뷰 별칭 AS 허용');
+  assert(fails('SELECT 이름 FROM 사원 WHERE 급여 > ANY (SELECT 급여 FROM 사원)'), 'ANY 없음');
+  assert(fails('SELECT 이름 FROM 사원 WHERE 급여 > ALL (SELECT 급여 FROM 사원)'), 'ALL 없음');
+  assert(fails('SELECT 이름 FROM 사원 WHERE 급여 > SOME (SELECT 급여 FROM 사원)'), 'SOME 없음');
+  assert(fails('SELECT 이름, (SELECT 이름, 직급 FROM 사원 WHERE 사원번호 = 1001) FROM 사원'), '스칼라 서브쿼리 두 열');
+  assert(fails('SELECT 이름 FROM 사원 WHERE 급여 = MAX(급여)'), 'WHERE에 집계 함수');
+  assert(fails('CREATE OR REPLACE VIEW v AS SELECT 1'), 'OR REPLACE 없음');
+  assert(fails("INSERT INTO 부서별현황 VALUES ('x', 1)"), '뷰는 읽기 전용');
+  assert(fails('CREATE VIEW 부서별현황 AS SELECT 1'), '같은 이름 뷰');
   db.close();
 });
 
