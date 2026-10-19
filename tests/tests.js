@@ -80,6 +80,7 @@ const DONE_UNITS = [
   '관계형 데이터베이스 개요',
   'SELECT 기본과 WHERE 조건',
   '함수',
+  'GROUP BY·HAVING 절',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -274,6 +275,28 @@ test('함수 단원: 카드·문제에 적은 값과 SQLite 동작', async () =>
   db.close();
 });
 
+test('GROUP BY·HAVING 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(one('SELECT COUNT(*), COUNT(커미션), SUM(커미션), AVG(커미션), COUNT(DISTINCT 직급) FROM 사원'), [11, 4, 1000, 250, 6]);
+  eq(one('SELECT ROUND(AVG(COALESCE(커미션, 0)), 1) FROM 사원'), [90.9]);
+  eq(one('SELECT SUM(급여 + 커미션), SUM(급여) + SUM(커미션) FROM 사원'), [19100, 52400]);
+  eq(one('SELECT COUNT(*), SUM(급여), MAX(급여), AVG(급여) FROM 사원 WHERE 1 = 0'), [0, null, null, null]);
+  eq(rows('SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY 부서번호 ORDER BY 부서번호'), [[null, 1], [10, 2], [20, 4], [30, 4]]);
+  eq(rows('SELECT 부서번호 FROM 사원 GROUP BY 부서번호 HAVING COUNT(*) >= 3 ORDER BY 1'), [[20], [30]]);
+  eq(rows("SELECT 부서번호, COUNT(*), AVG(급여) FROM 사원 WHERE 직급 <> '대표' GROUP BY 부서번호 HAVING AVG(급여) >= 3000 ORDER BY 1"),
+    [[10, 1, 3100], [20, 4, 4700], [30, 4, 4525]], '따라가기 카드');
+  eq(rows('SELECT 부서번호 FROM 사원 WHERE 급여 >= 4000 GROUP BY 부서번호 HAVING COUNT(*) >= 2').length, 2);
+  eq(rows('SELECT 부서번호, 직급 FROM 사원 GROUP BY 부서번호, 직급').length, 11);
+  // 오라클과 다르다고 적은 SQLite 동작
+  eq(rows('SELECT 부서번호, 이름, COUNT(*) FROM 사원 GROUP BY 부서번호').length, 4, 'GROUP BY에 없는 열 허용');
+  eq(rows('SELECT 부서번호 AS d, COUNT(*) FROM 사원 GROUP BY d').length, 4, 'GROUP BY 별칭 허용');
+  eq(rows('SELECT 부서번호, COUNT(*) AS 인원 FROM 사원 GROUP BY 부서번호 HAVING 인원 >= 3').length, 2, 'HAVING 별칭 허용');
+  assert(fails('SELECT STDDEV(급여) FROM 사원'), 'STDDEV 없음');
+  assert(fails('SELECT 부서번호 FROM 사원 WHERE COUNT(*) > 1 GROUP BY 부서번호'), 'WHERE에 집계 함수');
+  assert(fails('SELECT COUNT(DISTINCT *) FROM 사원'), 'COUNT(DISTINCT *)');
+  db.close();
+});
+
 // ---------- 실제 앱 화면 (iframe) ----------
 
 async function openApp(ns, width, height, hash = 'cards') {
@@ -324,7 +347,9 @@ test('카드: 단원을 바꾸고, 예시 SQL을 연습창으로 보내고, Ctrl
   const sel = d.querySelector('#pick-unit');
   sel.value = [...sel.options].find((o) => o.textContent.startsWith('GROUP BY')).value;
   sel.dispatchEvent(new w.Event('change', { bubbles: true }));
-  const card = await waitFor(() => d.querySelector('[data-card="group-by-having"]'), 'GROUP BY 카드');
+  await waitFor(() => d.querySelector('[data-card="group-aggregate"]'), 'GROUP BY 단원 첫 카드');
+  [...d.querySelectorAll('.card-nav button')].find((b) => b.textContent.includes('HAVING')).click();
+  const card = await waitFor(() => d.querySelector('[data-card="group-by-having"]'), '카드 목록에서 HAVING 카드로');
   card.querySelector('[data-send]').click();
   const editor = d.querySelector('#sql-editor');
   assert(editor.value.startsWith('SELECT 부서번호, COUNT(*)'), '연습창에 SQL이 들어감');

@@ -710,16 +710,181 @@
           "name": "GROUP BY·HAVING 절",
           "cards": [
             {
+              "id": "group-aggregate",
+              "title": "집계 함수: COUNT, SUM, AVG, MAX, MIN",
+              "summary": "집계 함수는 여러 행을 모아 값 하나를 계산한다. COUNT(*)를 뺀 집계 함수는 NULL을 빼고 계산한다.",
+              "desc": "함수 단원에서 본 다중행 함수가 바로 집계 함수다. 여러 행의 값을 모아 결과 하나를 낸다.\n· COUNT(*): 행의 개수. 값이 NULL이든 아니든 행이면 센다.\n· COUNT(열): 그 열의 값이 NULL이 아닌 행의 개수.\n· SUM(열) / AVG(열): 합계 / 평균.\n· MAX(열) / MIN(열): 가장 큰 값 / 가장 작은 값. 숫자뿐 아니라 문자·날짜에도 쓸 수 있다.\nCOUNT(*)를 뺀 집계 함수는 NULL을 '없는 값'으로 보고 계산에서 뺀다. 그래서 AVG(커미션)은 커미션이 있는 4명만으로 평균을 낸다(1000 ÷ 4 = 250). 11명 전체로 나누고 싶으면 NULL을 0으로 바꿔 AVG(NVL(커미션, 0))처럼 쓴다(1000 ÷ 11 ≈ 90.9).\n집계 함수 안에 DISTINCT를 쓰면 중복을 뺀 값만 계산한다. COUNT(DISTINCT 직급) = 6.\nGROUP BY 없이 집계 함수만 쓰면 테이블 전체가 한 그룹이 되어 결과는 1행이다.",
+              "analogy": "반 평균 점수를 낼 때 결석해서 시험을 안 본 학생(NULL)을 빼고 평균을 내는 것과 같다. 결석생을 0점으로 치면 평균이 확 떨어진다. 어느 쪽으로 계산할지는 함수가 아니라 내가 정해야 한다.",
+              "sql": "SELECT COUNT(*) AS 전체인원,\n       COUNT(커미션) AS 커미션있는인원,\n       SUM(커미션) AS 커미션합계,\n       AVG(커미션) AS 평균_NULL제외,\n       AVG(COALESCE(커미션, 0)) AS 평균_NULL은0,\n       MAX(급여) AS 최고급여,\n       MIN(입사일) AS 가장빠른입사일\nFROM 사원;",
+              "pitfalls": [
+                "COUNT(*)와 COUNT(열)은 다르다. 예제 테이블에서 COUNT(*)는 11, COUNT(커미션)은 4다.",
+                "조건에 맞는 행이 하나도 없으면 COUNT는 0이지만 SUM, AVG, MAX, MIN은 NULL이다.",
+                "SUM(급여 + 커미션)과 SUM(급여) + SUM(커미션)은 다를 수 있다. 앞쪽은 행마다 급여 + 커미션을 먼저 계산하므로, 커미션이 NULL인 행은 통째로 NULL이 되어 합계에서 빠진다. 예제 테이블에서는 19100과 52400으로 크게 다르다."
+              ],
+              "oracle": [
+                "표준편차: 오라클에는 STDDEV(표준편차) 함수가 있지만 SQLite(연습창)에는 없다. COUNT, SUM, AVG, MAX, MIN은 둘이 같다."
+              ],
+              "exam": "COUNT(*)와 COUNT(열)의 차이, NULL이 섞인 열의 AVG 결과를 계산하는 문제가 매우 자주 나온다. 작은 표를 주고 여러 집계 결과 중 옳은 것을 고르게 한다.",
+              "quiz": [
+                {
+                  "q": "어떤 열의 값이 10, 20, NULL, 30 인 네 행이 있다. 옳은 것은?",
+                  "choices": ["COUNT(*) = 3", "COUNT(열) = 4", "AVG(열) = 20", "SUM(열) = NULL"],
+                  "answer": 3,
+                  "explain": "COUNT(*)는 행 수라서 4, COUNT(열)은 NULL을 빼고 3이다. AVG는 NULL을 빼고 (10 + 20 + 30) ÷ 3 = 20이다. SUM도 NULL을 빼고 60이다."
+                },
+                {
+                  "q": "조건에 맞는 행이 하나도 없을 때(예: WHERE 1 = 0) 결과가 0인 것은?",
+                  "choices": ["COUNT(*)", "SUM(급여)", "MAX(급여)", "AVG(급여)"],
+                  "answer": 1,
+                  "explain": "COUNT는 센 것이 없으므로 0이다. SUM, MAX, AVG는 계산할 값이 없어서 NULL이다."
+                }
+              ]
+            },
+            {
+              "id": "group-by-basic",
+              "title": "GROUP BY로 그룹 나누기",
+              "summary": "GROUP BY는 같은 값을 가진 행끼리 묶어서, 그룹마다 집계 결과를 한 행씩 낸다.",
+              "desc": "앞 카드의 집계 함수는 테이블 전체를 하나로 보고 계산했다. 부서별 인원, 부서별 평균 급여처럼 '무엇별로' 계산하고 싶을 때 GROUP BY를 쓴다.\nGROUP BY 부서번호 라고 쓰면 부서번호가 같은 행끼리 한 그룹이 된다. 집계 함수는 그룹마다 따로 계산되고, 결과는 그룹 하나당 한 행이다.\n예제 사원 테이블에는 부서번호가 10, 20, 30, NULL인 사원이 있어서 결과가 4행이다. 부서번호가 NULL인 오인턴도 버려지지 않고 'NULL 그룹' 하나로 묶인다.\nGROUP BY에 열을 두 개 이상 쓰면 그 값들의 조합별로 묶인다(이 단원 마지막 카드).",
+              "analogy": "시험지를 반별 바구니에 나눠 담고, 바구니마다 평균을 내는 것과 같다. 반을 적지 않은 시험지도 버리지 않고 '반 미기재' 바구니 하나에 모은다.",
+              "sql": "SELECT 부서번호,\n       COUNT(*) AS 인원,\n       SUM(급여) AS 급여합계,\n       AVG(급여) AS 평균급여,\n       MAX(급여) AS 최고급여\nFROM 사원\nGROUP BY 부서번호;",
+              "pitfalls": [
+                "GROUP BY는 정렬을 보장하지 않는다. 부서번호 순으로 보고 싶으면 ORDER BY 부서번호를 붙인다(ORDER BY 단원).",
+                "NULL은 집계 함수 안에서는 빠지지만, GROUP BY 기준 열에서는 NULL끼리 한 그룹으로 묶인다.",
+                "GROUP BY에 열을 더 쓰면 그룹이 잘게 나뉘어 결과 행이 늘어난다."
+              ],
+              "exam": "GROUP BY 결과의 행 수를 묻거나, 그룹별 집계 값을 계산하게 한다. NULL인 행이 별도 그룹이 되는지가 자주 함정으로 나온다.",
+              "quiz": [
+                {
+                  "q": "부서번호 값이 10, 10, 20, NULL, NULL 인 다섯 행에 SELECT 부서번호, COUNT(*) FROM 테이블 GROUP BY 부서번호 를 실행하면 결과는 몇 행인가?",
+                  "choices": ["2", "3", "4", "5"],
+                  "answer": 2,
+                  "explain": "10, 20, NULL 세 그룹이 된다. NULL인 두 행은 버려지지 않고 하나의 그룹으로 묶인다."
+                },
+                {
+                  "q": "SELECT 부서번호, COUNT(커미션) FROM 사원 GROUP BY 부서번호 에서 COUNT(커미션)이 세는 것은?",
+                  "choices": ["부서마다 전체 사원 수", "부서마다 커미션이 NULL이 아닌 사원 수", "테이블 전체에서 커미션이 있는 사원 수", "부서마다 서로 다른 커미션 값의 수"],
+                  "answer": 2,
+                  "explain": "GROUP BY가 있으면 집계 함수는 그룹마다 계산된다. COUNT(열)은 NULL이 아닌 값만 세므로 '부서별로 커미션이 있는 사원 수'다. 서로 다른 값의 수는 COUNT(DISTINCT 커미션)이다."
+                }
+              ]
+            },
+            {
+              "id": "group-by-select-rule",
+              "title": "GROUP BY가 있을 때 SELECT에 쓸 수 있는 것",
+              "summary": "GROUP BY를 쓰면 SELECT에는 GROUP BY에 쓴 열, 집계 함수, 상수만 쓸 수 있다.",
+              "desc": "GROUP BY 부서번호를 하면 부서 하나가 결과 한 행이 된다. 20번 부서에는 사원이 4명인데, SELECT에 이름을 쓰면 4명 중 누구의 이름을 보여 줄지 정할 수 없다. 그래서 오라클은 이런 SQL을 오류로 막는다.\nGROUP BY가 있는 SELECT 절에 쓸 수 있는 것\n· GROUP BY에 쓴 열(부서번호)\n· 집계 함수(COUNT(*), MAX(급여) 등). 집계 함수 안에는 아무 열이나 써도 된다.\n· 상수('부서별', 100 같은 고정값)\n반대로 GROUP BY에 썼지만 SELECT에는 안 쓴 열은 괜찮다. SELECT COUNT(*) FROM 사원 GROUP BY 부서번호 는 부서번호 없이 인원만 4행 보여 준다.\n'그 부서에서 급여가 가장 높은 사람의 이름'처럼 그룹 안의 특정 행을 꼭 보고 싶다면 서브쿼리나 윈도우 함수가 필요하다(SQL 활용).",
+              "analogy": "시험지를 반별 바구니로 나눈 뒤에는 '1반 바구니'라는 이름표와 '평균 85점' 같은 요약만 말할 수 있다. 바구니에 시험지가 여러 장인데 '1반 학생 이름은?'이라고 물으면 한 명을 고를 수 없다.",
+              "sql": "SELECT 부서번호,\n       COUNT(*) AS 인원,\n       MAX(급여) AS 최고급여,\n       MIN(이름) AS 가나다순첫이름,\n       '부서별' AS 구분\nFROM 사원\nGROUP BY 부서번호;",
+              "pitfalls": [
+                "MAX(급여)와 이름을 같이 SELECT해도 '최고 급여를 받는 사람의 이름'이 나오는 게 아니다. 오라클에서는 오류이고, SQLite에서는 관계없는 이름이 나올 수도 있다.",
+                "MIN(이름), MAX(이름)처럼 집계 함수로 감싸면 문자 열도 쓸 수 있다. 가나다순으로 가장 앞 / 가장 뒤의 값이 나온다.",
+                "GROUP BY에는 SELECT에서 붙인 별칭을 쓸 수 없다(오라클 기준). GROUP BY가 SELECT보다 먼저 처리되기 때문이다(SELECT 기본 단원의 실행 순서)."
+              ],
+              "oracle": [
+                "GROUP BY에 없는 열: SELECT 부서번호, 이름, COUNT(*) FROM 사원 GROUP BY 부서번호 는 오라클에서 오류(GROUP BY 표현식이 아님)다. SQLite는 오류 없이 그룹 안 아무 행의 이름을 하나 골라 보여 준다. 연습창에서 실행된다고 맞는 SQL이 아니다.",
+                "GROUP BY 별칭·번호: SQLite는 GROUP BY 별칭이나 GROUP BY 1(SELECT의 첫 번째 열)도 받아 준다. 오라클은 전통적으로 둘 다 안 된다(23ai부터 일부 허용). 시험은 '안 된다'를 기준으로 푼다."
+              ],
+              "exam": "GROUP BY와 SELECT 절의 열이 맞지 않아 오류가 나는 SQL을 고르는 문제가 자주 나온다. 집계 함수 안의 열은 GROUP BY에 없어도 된다는 점이 함정이다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 오류가 나는 SQL은?",
+                  "choices": ["SELECT 부서번호, COUNT(*) FROM 사원 GROUP BY 부서번호;", "SELECT COUNT(*) FROM 사원 GROUP BY 부서번호;", "SELECT 부서번호, 직급, AVG(급여) FROM 사원 GROUP BY 부서번호;", "SELECT 부서번호, MAX(이름) FROM 사원 GROUP BY 부서번호;"],
+                  "answer": 3,
+                  "explain": "직급은 GROUP BY에 없고 집계 함수로 감싸지도 않았다. 한 부서 안에 직급이 여러 개라 어떤 값을 보여 줄지 정할 수 없어서 오류다. GROUP BY에 쓴 열을 SELECT에서 빼는 것(2번)은 괜찮다."
+                },
+                {
+                  "q": "GROUP BY 부서번호 가 있는 SELECT 절에 그대로 쓸 수 없는 것은?",
+                  "choices": ["부서번호", "COUNT(이름)", "급여", "SUM(급여)"],
+                  "answer": 3,
+                  "explain": "급여는 GROUP BY에 없는 열을 그대로 쓴 것이라 오류다. 집계 함수 안(COUNT(이름), SUM(급여))에서는 어떤 열이든 쓸 수 있다."
+                }
+              ]
+            },
+            {
               "id": "group-by-having",
-              "title": "GROUP BY와 HAVING",
-              "desc": "GROUP BY로 묶은 뒤 집계 함수로 계산한다.\n그룹에 대한 조건은 WHERE가 아니라 HAVING에 쓴다.",
+              "title": "HAVING으로 그룹 거르기",
+              "summary": "WHERE는 묶기 전에 행을 거르고, HAVING은 묶은 뒤에 그룹을 거른다. 집계 결과로 거르는 조건은 HAVING에 쓴다.",
+              "desc": "'사원이 3명 이상인 부서만' 보고 싶다고 하자. 인원(COUNT(*))은 그룹으로 묶은 뒤에야 알 수 있으므로 WHERE에 쓸 수 없다. WHERE는 행을 하나씩 보며 거르는 단계라서 그때는 아직 그룹도, 인원수도 없다.\n그래서 그룹을 거르는 HAVING이 따로 있다. HAVING은 GROUP BY 뒤에 쓰고, 조건에 집계 함수를 쓸 수 있다.\nHAVING COUNT(*) >= 3 → 인원이 3명 이상인 그룹만 남긴다.\nHAVING AVG(급여) >= 4500 → 평균 급여가 4500 이상인 그룹만 남긴다.\n처리 순서로 정리하면 FROM → WHERE(행 거르기) → GROUP BY(묶기) → HAVING(그룹 거르기) → SELECT → ORDER BY다.",
+              "analogy": "WHERE는 바구니에 담기 전에 불량 시험지를 빼는 일이고, HAVING은 바구니에 다 담은 뒤 '평균이 80점 넘는 반의 바구니만' 남기는 일이다.",
               "sql": "SELECT 부서번호, COUNT(*) AS 인원, AVG(급여) AS 평균급여\nFROM 사원\nGROUP BY 부서번호\nHAVING COUNT(*) >= 3;",
+              "pitfalls": [
+                "WHERE에 집계 함수를 쓰면 오류다. WHERE COUNT(*) >= 3 은 오라클과 SQLite 모두 오류다.",
+                "HAVING에도 SELECT의 별칭은 쓸 수 없다(오라클 기준). HAVING 인원 >= 3 이 아니라 HAVING COUNT(*) >= 3 으로 쓴다.",
+                "HAVING 조건의 집계가 SELECT에 없어도 된다. SELECT 부서번호 FROM 사원 GROUP BY 부서번호 HAVING MAX(급여) > 6000 은 문제없다.",
+                "그룹과 상관없는 조건(직급 = '사원' 같은)은 HAVING보다 WHERE에 쓰는 것이 바르다. 미리 행을 줄여야 묶을 양도 줄어든다."
+              ],
+              "oracle": [
+                "HAVING의 별칭: SQLite는 HAVING 인원 >= 3 처럼 SELECT의 별칭을 받아 주지만 오라클은 오류다."
+              ],
+              "exam": "WHERE와 HAVING에 들어갈 조건을 구분하는 문제, WHERE에 집계 함수를 써서 오류가 나는 SQL을 찾는 문제가 단골이다.",
               "quiz": [
                 {
                   "q": "집계 결과(예: COUNT(*) >= 3)로 그룹을 걸러낼 때 쓰는 절은?",
                   "choices": ["WHERE", "ORDER BY", "HAVING", "GROUP BY"],
                   "answer": 3,
                   "explain": "WHERE는 그룹을 만들기 전 행을 거르고, HAVING은 그룹을 만든 뒤 집계 결과로 거른다."
+                },
+                {
+                  "q": "부서별 평균 급여를 구하되 '인턴'은 계산에서 빼고, 평균이 4000 이상인 부서만 보려고 한다. SELECT 부서번호, AVG(급여) FROM 사원 다음에 올 내용으로 알맞은 것은?",
+                  "choices": ["WHERE 직급 <> '인턴' AND AVG(급여) >= 4000 GROUP BY 부서번호", "WHERE 직급 <> '인턴' GROUP BY 부서번호 HAVING AVG(급여) >= 4000", "GROUP BY 부서번호 WHERE 직급 <> '인턴' HAVING AVG(급여) >= 4000", "HAVING 직급 <> '인턴' GROUP BY 부서번호 WHERE AVG(급여) >= 4000"],
+                  "answer": 2,
+                  "explain": "행 하나하나에 대한 조건(직급)은 WHERE에, 집계 결과에 대한 조건(AVG)은 HAVING에 쓴다. 작성 순서는 WHERE → GROUP BY → HAVING이다."
+                }
+              ]
+            },
+            {
+              "id": "group-where-having-trace",
+              "title": "WHERE → GROUP BY → HAVING 따라가기",
+              "summary": "한 SQL에 WHERE, GROUP BY, HAVING이 모두 있으면 '행 거르기 → 묶기 → 그룹 거르기' 순서로 결과가 만들어진다.",
+              "desc": "예시 SQL이 결과를 만드는 과정을 단계별로 따라가 보자.\n① FROM 사원: 11행에서 시작한다.\n② WHERE 직급 <> '대표': 김대표가 빠져 10행이 남는다.\n③ GROUP BY 부서번호: 10번(한사원), 20번(4명), 30번(4명), NULL(오인턴) 네 그룹이 된다.\n④ HAVING AVG(급여) >= 3000: 그룹별 평균은 10번 3100, 20번 4700, 30번 4525, NULL 2400이다. NULL 그룹이 탈락해 세 그룹이 남는다.\n⑤ SELECT: 남은 그룹마다 부서번호, 인원, 평균급여를 보여 준다.\nWHERE를 빼면 10번 부서의 평균은 (9000 + 3100) ÷ 2 = 6050이 된다. HAVING이 같아도 WHERE에서 무엇을 뺐는지에 따라 집계 결과가 달라진다.",
+              "analogy": "공장 조립 라인과 같다. 불량 검사(WHERE)를 통과한 부품만 상자에 나눠 담고(GROUP BY), 무게 기준에 맞는 상자만 출고한다(HAVING). 검사 기준을 바꾸면 상자 무게도 달라진다.",
+              "sql": "SELECT 부서번호, COUNT(*) AS 인원, AVG(급여) AS 평균급여\nFROM 사원\nWHERE 직급 <> '대표'\nGROUP BY 부서번호\nHAVING AVG(급여) >= 3000;",
+              "pitfalls": [
+                "WHERE에서 뺀 행은 집계에 아예 들어가지 않는다. 예시에서 10번 부서의 인원이 2가 아니라 1인 이유다.",
+                "HAVING에서 탈락한 그룹은 결과에서 통째로 사라진다. 예시에서 오인턴의 NULL 그룹이 그렇다.",
+                "조건을 WHERE에 쓸지 HAVING에 쓸지 헷갈리면 '이 조건을 행 하나만 보고 판단할 수 있나?'를 따져 보자. 가능하면 WHERE, 그룹 전체를 봐야 하면 HAVING이다."
+              ],
+              "exam": "작은 표와 WHERE·GROUP BY·HAVING이 모두 있는 SQL을 주고 결과 행 수나 특정 그룹의 집계 값을 계산하게 한다. 단계별로 표를 줄여 가며 풀면 실수가 적다.",
+              "quiz": [
+                {
+                  "q": "예제 사원 테이블에서 SELECT 부서번호 FROM 사원 WHERE 급여 >= 4000 GROUP BY 부서번호 HAVING COUNT(*) >= 2; 의 결과 행 수는?",
+                  "choices": ["1", "2", "3", "4"],
+                  "answer": 2,
+                  "explain": "급여 4000 이상인 사원은 10번 1명(김대표), 20번 3명(이부장, 최과장, 강대리), 30번 2명(박부장, 정과장)이다. 2명 이상인 그룹은 20번과 30번이라 2행이다."
+                },
+                {
+                  "q": "WHERE와 HAVING에 대한 설명으로 옳은 것은?",
+                  "choices": ["HAVING은 GROUP BY보다 먼저 처리된다", "WHERE에서 제외된 행도 집계 함수 계산에는 포함된다", "HAVING에는 집계 함수를 쓸 수 있지만 WHERE에는 쓸 수 없다", "HAVING을 쓰려면 WHERE도 반드시 함께 써야 한다"],
+                  "answer": 3,
+                  "explain": "처리 순서는 WHERE → GROUP BY → HAVING이다. WHERE에서 빠진 행은 집계에 들어가지 않는다. HAVING은 WHERE 없이도 쓸 수 있다."
+                }
+              ]
+            },
+            {
+              "id": "group-by-multi",
+              "title": "여러 열로 묶기와 COUNT(DISTINCT)",
+              "summary": "GROUP BY에 열을 여러 개 쓰면 그 조합별로 묶이고, COUNT(DISTINCT 열)로 그룹 안의 서로 다른 값 개수를 센다.",
+              "desc": "GROUP BY 부서번호, 직급 은 (부서번호, 직급) 조합이 같은 행끼리 묶는다. 20번 부서의 과장과 30번 부서의 과장은 서로 다른 그룹이다. SELECT 절에는 GROUP BY에 쓴 두 열을 모두 쓸 수 있다.\n그룹 안에 '서로 다른 값이 몇 종류인지' 알고 싶으면 COUNT(DISTINCT 열)을 쓴다. SELECT 부서번호, COUNT(DISTINCT 직급) ... GROUP BY 부서번호 는 부서마다 직급이 몇 종류인지 센다.\n예시 SQL은 부서별로 인원, 직급 종류 수, 커미션을 받는 사람 수를 한꺼번에 구한다. COUNT(*), COUNT(DISTINCT 열), COUNT(열)의 차이를 한 표에서 비교해 보자.",
+              "analogy": "옷가게 재고를 '종류별·색깔별'로 세는 것과 같다. '티셔츠-흰색'과 '티셔츠-검정'은 서로 다른 칸이다. '티셔츠가 몇 가지 색으로 있나?'는 색깔의 종류 수(COUNT(DISTINCT 색깔))다.",
+              "sql": "SELECT 부서번호,\n       COUNT(*) AS 인원,\n       COUNT(DISTINCT 직급) AS 직급종류,\n       COUNT(커미션) AS 커미션받는인원\nFROM 사원\nGROUP BY 부서번호;",
+              "pitfalls": [
+                "GROUP BY 부서번호, 직급 과 GROUP BY 직급, 부서번호 는 같은 그룹을 만든다. 열의 순서는 묶이는 방식에 영향이 없다.",
+                "COUNT(DISTINCT 열)도 NULL은 세지 않는다.",
+                "COUNT(DISTINCT *)는 쓸 수 없다. DISTINCT는 열 이름과 함께 쓴다."
+              ],
+              "exam": "여러 열로 GROUP BY 했을 때의 결과 행 수, COUNT(*) · COUNT(열) · COUNT(DISTINCT 열)의 값을 비교하는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "직급 값이 '사원', '사원', '대리', NULL 인 네 행이 있다. COUNT(*), COUNT(직급), COUNT(DISTINCT 직급)을 차례로 쓰면?",
+                  "choices": ["4, 4, 3", "4, 3, 2", "4, 3, 3", "3, 3, 2"],
+                  "answer": 2,
+                  "explain": "COUNT(*)는 행 수 4, COUNT(직급)은 NULL을 빼고 3, COUNT(DISTINCT 직급)은 NULL을 빼고 서로 다른 값('사원', '대리')만 세어 2다."
+                },
+                {
+                  "q": "예제 사원 테이블에서 SELECT 부서번호, 직급 FROM 사원 GROUP BY 부서번호, 직급 의 결과 행 수는? (같은 부서에 같은 직급인 사원은 없다)",
+                  "choices": ["4", "6", "10", "11"],
+                  "answer": 4,
+                  "explain": "부서번호와 직급의 조합이 11명 모두 다르므로(오인턴은 NULL 부서의 인턴) 11개 그룹이 된다. 조합이 하나도 겹치지 않으면 GROUP BY를 해도 행이 줄지 않는다."
                 }
               ]
             }
