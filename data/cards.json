@@ -1262,16 +1262,189 @@
           "name": "표준 조인",
           "cards": [
             {
+              "id": "std-inner-join",
+              "title": "INNER JOIN ... ON",
+              "summary": "표준 조인은 조인 조건을 WHERE가 아니라 FROM 절의 JOIN ... ON에 쓴다. 조인 조건과 일반 조건이 깔끔하게 나뉜다.",
+              "desc": "조인 단원에서는 FROM에 테이블을 쉼표로 나열하고 WHERE에 조인 조건을 썼다. ANSI 표준 SQL에서는 같은 조인을 이렇게 쓴다.\nFROM 사원 e INNER JOIN 부서 d\n  ON e.부서번호 = d.부서번호\nWHERE d.지역 = '판교'\n· INNER JOIN: 내부 조인(짝이 있는 행만). INNER는 생략하고 JOIN만 써도 된다.\n· ON: 조인 조건을 쓰는 자리. 등가·비등가 조건 모두 쓸 수 있다.\n· WHERE: 조인과 상관없는 일반 조건만 남는다.\n결과는 조인 단원의 WHERE 방식과 똑같다. 그래도 표준 방식은 '어떻게 잇는지(ON)'와 '무엇을 거르는지(WHERE)'가 나뉘어 읽기 쉽고, 조인 조건을 빼먹는 실수도 줄여 준다.\n테이블이 셋 이상이면 JOIN ... ON을 이어서 쓴다.\nFROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호\n            JOIN 급여등급 g ON e.급여 BETWEEN g.최저급여 AND g.최고급여",
+              "analogy": "택배 송장에 '받는 주소'(ON, 어떻게 잇는가) 칸과 '배송 요청 사항'(WHERE, 무엇을 거르는가) 칸이 따로 있는 것과 같다. 한 칸에 몰아 적는 것보다 실수가 적다.",
+              "sql": "SELECT e.이름, d.부서명, g.등급\nFROM 사원 e\n  INNER JOIN 부서 d ON e.부서번호 = d.부서번호\n  INNER JOIN 급여등급 g ON e.급여 BETWEEN g.최저급여 AND g.최고급여\nWHERE d.지역 = '판교'\nORDER BY g.등급 DESC;",
+              "pitfalls": [
+                "INNER JOIN에는 ON(또는 다음 카드의 USING)이 꼭 필요하다. ON 없이 INNER JOIN만 쓰면 오라클에서 오류다.",
+                "JOIN만 쓰면 INNER JOIN이다. OUTER JOIN이 되는 것이 아니다.",
+                "INNER JOIN에서는 일반 조건을 ON에 넣든 WHERE에 넣든 결과가 같다. 하지만 OUTER JOIN에서는 결과가 달라지므로(이 단원 마지막 카드) 일반 조건은 WHERE에 쓰는 습관을 들이자."
+              ],
+              "oracle": [
+                "ON 없는 JOIN: SQLite는 FROM 사원 JOIN 부서 처럼 ON을 빼도 오류 없이 카티션 곱(44행)을 만든다. 오라클은 INNER JOIN에 ON이나 USING이 없으면 문법 오류다."
+              ],
+              "exam": "WHERE 방식의 조인과 같은 결과를 내는 INNER JOIN 문장을 고르는 문제, ON과 WHERE의 역할을 구분하는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "SELECT e.이름, d.부서명 FROM 사원 e, 부서 d WHERE e.부서번호 = d.부서번호 AND e.급여 > 4000; 과 항상 같은 결과를 내는 SQL은?",
+                  "choices": ["SELECT e.이름, d.부서명 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.급여 > 4000;", "SELECT e.이름, d.부서명 FROM 사원 e JOIN 부서 d WHERE e.부서번호 = d.부서번호 ON e.급여 > 4000;", "SELECT e.이름, d.부서명 FROM 사원 e LEFT OUTER JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.급여 > 4000;", "SELECT e.이름, d.부서명 FROM 사원 e CROSS JOIN 부서 d WHERE e.급여 > 4000;"],
+                  "answer": 1,
+                  "explain": "조인 조건은 ON에, 일반 조건은 WHERE에 쓴다. 2번은 절의 순서가 틀렸고, 3번은 외부 조인이라 부서가 없는 사원도 남을 수 있으며, 4번은 조인 조건이 없어 카티션 곱이다."
+                },
+                {
+                  "q": "표준 조인 문법에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["INNER는 생략할 수 있다", "조인 조건은 ON 절에 쓴다", "ON 절에는 = 조건만 쓸 수 있다", "세 테이블은 JOIN ... ON을 이어 써서 조인한다"],
+                  "answer": 3,
+                  "explain": "ON에는 BETWEEN 같은 비등가 조건도 쓸 수 있다. 예시 SQL의 급여등급 조인이 그 예다."
+                }
+              ]
+            },
+            {
+              "id": "std-using-natural",
+              "title": "USING과 NATURAL JOIN",
+              "summary": "두 테이블의 같은 이름 열로 조인할 때 USING(열)으로 짧게 쓸 수 있고, NATURAL JOIN은 이름이 같은 열을 모두 찾아 알아서 등가 조인한다.",
+              "desc": "사원과 부서처럼 조인할 열의 이름이 양쪽에서 같다면 ON 대신 USING을 쓸 수 있다.\nFROM 사원 e JOIN 부서 d USING (부서번호)\n는 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 와 같은 조인이다.\nNATURAL JOIN은 조건을 아예 쓰지 않는다. 두 테이블에서 이름이 같은 열을 DBMS가 모두 찾아 = 로 조인한다.\nFROM 사원 NATURAL JOIN 부서 → 이름이 같은 열이 부서번호뿐이므로 위와 같은 결과다.\nUSING이나 NATURAL JOIN으로 조인한 열(부서번호)은 결과에 한 번만 나온다. ON으로 조인하면 e.부서번호와 d.부서번호가 따로 있지만, USING에서는 둘이 하나로 합쳐진 열이 된다.",
+              "analogy": "NATURAL JOIN은 '이름표가 같은 사람끼리 알아서 짝지어 줘'라고 맡기는 것이고, USING은 '부서번호 이름표가 같은 사람끼리만'이라고 기준을 정해 주는 것이다.",
+              "sql": "SELECT 부서번호, e.이름, d.부서명\nFROM 사원 e JOIN 부서 d USING (부서번호)\nWHERE 부서번호 = 30;\n\nSELECT 부서번호, 이름, 부서명\nFROM 사원 NATURAL JOIN 부서\nWHERE 부서번호 = 10;",
+              "pitfalls": [
+                "USING이나 NATURAL JOIN의 조인 열에는 테이블 별칭을 붙이면 안 된다(오라클 기준). e.부서번호가 아니라 그냥 부서번호라고 쓴다.",
+                "NATURAL JOIN은 이름이 같은 열을 '모두' 조인 조건으로 쓴다. 나중에 두 테이블에 이름이 같은 열(예: 수정일)이 하나 더 생기면 그 열까지 같아야 짝이 되어 결과가 크게 줄어든다.",
+                "NATURAL JOIN에는 ON이나 USING을 함께 쓸 수 없다.",
+                "USING (부서번호)처럼 괄호가 꼭 필요하다."
+              ],
+              "oracle": [
+                "조인 열의 별칭: 오라클은 USING이나 NATURAL JOIN으로 조인한 열에 e.부서번호처럼 별칭을 붙이면 오류다. SQLite는 받아 준다. 연습창에서 된다고 맞는 SQL이 아니다."
+              ],
+              "exam": "USING·NATURAL JOIN의 조인 열에 별칭을 붙여 오류가 나는 SQL을 찾는 문제, NATURAL JOIN이 어떤 열로 조인하는지 묻는 문제가 단골이다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 오류가 나는 SQL은?",
+                  "choices": ["SELECT 부서번호, 이름 FROM 사원 JOIN 부서 USING (부서번호);", "SELECT e.부서번호, e.이름 FROM 사원 e JOIN 부서 d USING (부서번호);", "SELECT 부서번호, 부서명 FROM 사원 NATURAL JOIN 부서;", "SELECT e.이름, d.부서명 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호;"],
+                  "answer": 2,
+                  "explain": "USING으로 조인한 열은 하나로 합쳐진 열이라 테이블 별칭을 붙일 수 없다. 그냥 부서번호라고 써야 한다. 반대로 ON 방식(4번)에서는 같은 이름의 열에 별칭을 붙여야 한다."
+                },
+                {
+                  "q": "테이블 A(번호, 이름, 지역)와 B(번호, 지역, 점수)를 NATURAL JOIN 할 때 쓰이는 조인 조건은?",
+                  "choices": ["A.번호 = B.번호", "A.지역 = B.지역", "A.번호 = B.번호 AND A.지역 = B.지역", "조건이 없어 카티션 곱이 된다"],
+                  "answer": 3,
+                  "explain": "NATURAL JOIN은 이름이 같은 열을 모두 찾아 등가 조인한다. 번호와 지역 두 열이 같은 이름이므로 둘 다 같아야 짝이 된다."
+                }
+              ]
+            },
+            {
               "id": "outer-join",
               "title": "LEFT OUTER JOIN",
-              "desc": "왼쪽 테이블의 행은 짝이 없어도 모두 남기고, 오른쪽 값은 NULL로 채운다.\n오라클의 (+) 표기는 SQLite에서 쓸 수 없으니 표준 JOIN 문법으로 연습한다.",
+              "summary": "LEFT OUTER JOIN은 왼쪽 테이블의 행을 짝이 없어도 모두 남기고, 짝이 없는 오른쪽 열은 NULL로 채운다.",
+              "desc": "조인 단원 마지막 카드에서, 내부 조인을 하면 사원이 없는 40번 연구 부서가 사라진다는 것을 보았다. 오라클은 (+)로 외부 조인을 하지만, 표준 문법은 OUTER JOIN을 쓴다.\nFROM 부서 d LEFT OUTER JOIN 사원 e\n  ON d.부서번호 = e.부서번호\nLEFT는 'JOIN 왼쪽에 쓴 테이블(부서)을 기준으로 모두 남긴다'는 뜻이다. 사원이 있는 부서는 사원 수만큼 행이 나오고, 사원이 없는 40번 부서는 한 행이 나오며 사원 쪽 열(e.이름)은 NULL이다. 결과는 10행 + 1행 = 11행이다.\nOUTER는 생략할 수 있다(LEFT JOIN).\n오라클 (+)와 비교하면 FROM 부서 d, 사원 e WHERE d.부서번호 = e.부서번호(+) 와 같다. (+)는 모자란 쪽(사원)에 붙고, LEFT는 남길 쪽(부서)을 가리킨다. 가리키는 방향이 반대라서 헷갈리기 쉽다.",
+              "analogy": "출석부(왼쪽)를 기준으로 과제 제출함(오른쪽)을 맞춰 보는 것과 같다. 과제를 안 낸 학생도 출석부에 있으니 명단에서 빠지지 않고, 과제 칸만 비어 있다(NULL).",
               "sql": "SELECT d.부서명, e.이름\nFROM 부서 d\nLEFT OUTER JOIN 사원 e\n  ON d.부서번호 = e.부서번호\nORDER BY d.부서번호;",
+              "pitfalls": [
+                "LEFT·RIGHT는 JOIN 키워드를 기준으로 왼쪽·오른쪽에 쓴 테이블을 뜻한다. 테이블 순서를 바꾸면 LEFT와 RIGHT도 바꿔야 같은 결과가 나온다.",
+                "사원 쪽을 기준으로 하면 결과가 다르다. 사원 e LEFT JOIN 부서 d 는 부서가 없는 오인턴을 남기고, 40번 부서는 나오지 않는다.",
+                "짝이 없는 행만 찾고 싶으면 외부 조인 뒤 WHERE e.사원번호 IS NULL 처럼 오른쪽 테이블의 기본키가 NULL인 행만 고른다. '사원이 없는 부서'를 찾는 대표적인 방법이다."
+              ],
+              "oracle": [
+                "(+)와 짝짓기: 오라클의 WHERE d.부서번호 = e.부서번호(+) 는 표준 FROM 부서 d LEFT OUTER JOIN 사원 e ON d.부서번호 = e.부서번호 와 같다. SQLite에서는 표준 문법만 쓸 수 있다."
+              ],
+              "exam": "LEFT OUTER JOIN 결과의 행 수와 NULL이 들어가는 칸을 묻는 문제, 오라클 (+) 문장과 같은 결과를 내는 표준 OUTER JOIN 문장을 고르는 문제가 자주 나온다.",
               "quiz": [
                 {
                   "q": "부서 d LEFT OUTER JOIN 사원 e 에서 사원이 한 명도 없는 부서는 어떻게 나오는가?",
                   "choices": ["결과에서 빠진다", "부서 정보와 함께 사원 컬럼이 NULL로 나온다", "오류가 난다", "사원 컬럼이 0으로 나온다"],
                   "answer": 2,
                   "explain": "LEFT OUTER JOIN은 왼쪽(부서) 행을 모두 남기고, 짝이 없는 오른쪽 컬럼을 NULL로 채운다."
+                },
+                {
+                  "q": "오라클의 FROM 사원 e, 부서 d WHERE e.부서번호 = d.부서번호(+) 와 같은 결과를 내는 표준 SQL은?",
+                  "choices": ["FROM 사원 e LEFT OUTER JOIN 부서 d ON e.부서번호 = d.부서번호", "FROM 사원 e RIGHT OUTER JOIN 부서 d ON e.부서번호 = d.부서번호", "FROM 사원 e INNER JOIN 부서 d ON e.부서번호 = d.부서번호", "FROM 부서 d LEFT OUTER JOIN 사원 e ON e.부서번호 = d.부서번호"],
+                  "answer": 1,
+                  "explain": "(+)가 부서 쪽(모자란 쪽)에 붙었으므로 사원이 기준이 되어 모두 남는다. 사원을 왼쪽에 두었으니 LEFT OUTER JOIN이다. 4번은 부서를 기준으로 남기는 반대 결과다."
+                }
+              ]
+            },
+            {
+              "id": "std-right-full",
+              "title": "RIGHT·FULL OUTER JOIN",
+              "summary": "RIGHT OUTER JOIN은 오른쪽 테이블을 모두 남기고, FULL OUTER JOIN은 양쪽 테이블을 모두 남긴다.",
+              "desc": "RIGHT OUTER JOIN은 LEFT의 거울이다. JOIN 오른쪽에 쓴 테이블의 행을 모두 남긴다.\nFROM 사원 e RIGHT OUTER JOIN 부서 d ON ... 는 FROM 부서 d LEFT OUTER JOIN 사원 e ON ... 과 같다.\n그래서 실무에서는 테이블 순서를 바꿔 LEFT로 통일해 쓰는 경우가 많다.\nFULL OUTER JOIN은 양쪽을 모두 남긴다. 짝이 있는 행은 이어 붙이고, 왼쪽에만 있는 행은 오른쪽 열을 NULL로, 오른쪽에만 있는 행은 왼쪽 열을 NULL로 채운다.\n예제에서 사원 e FULL OUTER JOIN 부서 d 는 짝이 있는 10행 + 부서가 없는 오인턴 1행 + 사원이 없는 연구 부서 1행 = 12행이다.\n예제 기준 결과 행 수 정리: 내부 조인 10행, 사원 LEFT JOIN 부서 11행, 사원 RIGHT JOIN 부서 11행, FULL OUTER JOIN 12행.",
+              "analogy": "두 동아리 명단을 합치는 것과 같다. FULL OUTER JOIN은 '둘 다 가입한 사람은 한 줄로, 한쪽에만 가입한 사람도 빠짐없이' 적은 통합 명단이다.",
+              "sql": "SELECT e.이름, d.부서명\nFROM 사원 e\n  FULL OUTER JOIN 부서 d ON e.부서번호 = d.부서번호\nORDER BY d.부서번호, e.이름;\n\nSELECT e.이름, d.부서명\nFROM 사원 e\n  FULL OUTER JOIN 부서 d ON e.부서번호 = d.부서번호\nWHERE e.사원번호 IS NULL OR d.부서번호 IS NULL;",
+              "pitfalls": [
+                "FULL OUTER JOIN은 LEFT 결과와 RIGHT 결과를 합치되, 짝이 있는 행은 한 번만 넣은 것이다. LEFT 행 수 + RIGHT 행 수가 아니다(11 + 11 ≠ 12).",
+                "오라클의 (+)로는 FULL OUTER JOIN을 만들 수 없다. 양쪽에 (+)를 붙이면 오류다.",
+                "외부 조인 결과의 NULL이 원래 데이터의 NULL인지, 짝이 없어 생긴 NULL인지 구별하려면 기본키 열(사원번호, 부서번호)을 본다. 기본키는 원래 NULL일 수 없어서, 기본키가 NULL이면 짝이 없어 생긴 행이다. 예시의 두 번째 SQL이 이 방법으로 짝 없는 행 2개를 골라낸다."
+              ],
+              "oracle": [
+                "지원 시기: SQLite는 RIGHT·FULL OUTER JOIN을 3.39 버전(2022년)부터 지원한다. 연습창의 SQLite(3.45)에서는 동작하지만, 오래된 SQLite에서는 LEFT만 된다. 오라클은 예전부터 둘 다 지원한다."
+              ],
+              "exam": "LEFT·RIGHT·FULL OUTER JOIN의 결과 행 수를 작은 표에서 계산하게 하는 문제가 많다. 특히 FULL OUTER JOIN의 행 수, RIGHT를 LEFT로 바꿔 쓴 같은 문장을 고르는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "A(1, 2, 3)와 B(2, 3, 4)를 같은 값끼리 조인할 때(값마다 한 행씩), FULL OUTER JOIN의 결과 행 수는?",
+                  "choices": ["2", "3", "4", "6"],
+                  "answer": 3,
+                  "explain": "짝이 있는 2와 3이 두 행, A에만 있는 1이 한 행, B에만 있는 4가 한 행이라 모두 4행이다."
+                },
+                {
+                  "q": "FROM 사원 e RIGHT OUTER JOIN 부서 d ON e.부서번호 = d.부서번호 와 같은 결과를 내는 것은?",
+                  "choices": ["FROM 사원 e LEFT OUTER JOIN 부서 d ON e.부서번호 = d.부서번호", "FROM 부서 d LEFT OUTER JOIN 사원 e ON e.부서번호 = d.부서번호", "FROM 부서 d RIGHT OUTER JOIN 사원 e ON e.부서번호 = d.부서번호", "FROM 사원 e FULL OUTER JOIN 부서 d ON e.부서번호 = d.부서번호"],
+                  "answer": 2,
+                  "explain": "RIGHT는 오른쪽(부서)을 모두 남긴다. 테이블 순서를 바꿔 부서를 왼쪽에 두면 LEFT로 같은 결과를 낼 수 있다."
+                }
+              ]
+            },
+            {
+              "id": "std-cross-join",
+              "title": "CROSS JOIN",
+              "summary": "CROSS JOIN은 조인 조건 없이 두 테이블의 모든 행을 짝짓는다. 카티션 곱을 '일부러' 만들 때 쓴다.",
+              "desc": "조인 단원에서 조인 조건을 빼먹으면 카티션 곱이 생긴다고 배웠다. 표준 문법의 CROSS JOIN은 같은 결과를 일부러, 분명하게 만든다.\nFROM 사원 CROSS JOIN 부서 → 11 × 4 = 44행\nCROSS JOIN에는 ON을 쓰지 않는다.\n언제 쓸까? 모든 조합이 필요할 때다. 예를 들어 '모든 부서 × 모든 급여등급' 표를 먼저 만들어 두고 칸마다 인원을 채우거나, 모든 사원에게 모든 교육 과정을 배정하는 계획표를 만들 때 쓴다.\n예시 SQL은 부서 4개 × 급여등급 5개 = 20개 조합을 만든다.",
+              "analogy": "옷 코디 조합표와 같다. 상의 4벌과 하의 5벌이 있으면 입을 수 있는 조합은 4 × 5 = 20가지다. 빠짐없이 모든 조합을 늘어놓는 것이 CROSS JOIN이다.",
+              "sql": "SELECT d.부서명, g.등급\nFROM 부서 d CROSS JOIN 급여등급 g\nORDER BY d.부서번호, g.등급;",
+              "pitfalls": [
+                "CROSS JOIN에 ON을 붙이지 않는다. 조건이 필요하면 INNER JOIN을 쓴다.",
+                "CROSS JOIN 뒤 WHERE로 조인 조건을 걸면 결과적으로 INNER JOIN과 같아진다. 하지만 의도가 흐려지므로 조인 조건은 INNER JOIN ... ON으로 쓴다.",
+                "행 수가 곱으로 늘어나므로 큰 테이블끼리 CROSS JOIN하면 결과가 매우 커진다."
+              ],
+              "oracle": [
+                "CROSS JOIN과 ON: 오라클은 CROSS JOIN 뒤에 ON을 쓰면 문법 오류다. SQLite는 받아 주고 INNER JOIN처럼 처리한다."
+              ],
+              "exam": "CROSS JOIN의 결과 행 수, CROSS JOIN과 같은 결과를 내는 문장(조인 조건 없이 FROM A, B)을 묻는다.",
+              "quiz": [
+                {
+                  "q": "부서 4행, 급여등급 5행일 때 SELECT * FROM 부서 CROSS JOIN 급여등급; 의 결과 행 수는?",
+                  "choices": ["4", "5", "9", "20"],
+                  "answer": 4,
+                  "explain": "CROSS JOIN은 모든 행끼리 짝지으므로 4 × 5 = 20행이다."
+                },
+                {
+                  "q": "SELECT * FROM A CROSS JOIN B; 와 같은 결과를 내는 SQL은?",
+                  "choices": ["SELECT * FROM A, B;", "SELECT * FROM A NATURAL JOIN B;", "SELECT * FROM A JOIN B ON 1 = 0;", "SELECT * FROM A LEFT JOIN B ON A.id = B.id;"],
+                  "answer": 1,
+                  "explain": "조인 조건 없이 쉼표로 나열하면 카티션 곱이라 CROSS JOIN과 같다. 3번은 조건이 항상 거짓이라 0행이다."
+                }
+              ]
+            },
+            {
+              "id": "std-on-vs-where",
+              "title": "OUTER JOIN에서 ON과 WHERE의 차이",
+              "summary": "OUTER JOIN에서 오른쪽 테이블 조건을 ON에 쓰면 '짝을 고르는 조건'이 되어 왼쪽 행은 모두 남고, WHERE에 쓰면 조인이 끝난 뒤 걸러서 왼쪽 행도 사라질 수 있다.",
+              "desc": "부서마다 과장 이름을 보여 주되, 과장이 없는 부서도 남기고 싶다고 하자.\n① 조건을 ON에 넣기\nFROM 부서 d LEFT JOIN 사원 e\n  ON d.부서번호 = e.부서번호 AND e.직급 = '과장'\n→ 짝을 고를 때 '그 부서의 과장'만 짝으로 인정한다. 부서는 LEFT 기준이라 모두 남고, 과장이 없는 부서(경영지원, 연구)는 이름이 NULL이다. 결과 4행.\n② 조건을 WHERE에 넣기\nFROM 부서 d LEFT JOIN 사원 e\n  ON d.부서번호 = e.부서번호\nWHERE e.직급 = '과장'\n→ 먼저 외부 조인을 다 한 뒤 직급이 '과장'인 행만 남긴다. 과장이 없는 부서는 e.직급이 다른 값이거나 NULL이라 걸러진다. 결과 2행으로, 내부 조인과 같아진다.\nINNER JOIN에서는 조건을 ON과 WHERE 어디에 써도 결과가 같지만, OUTER JOIN에서는 위치에 따라 결과가 달라진다.",
+              "analogy": "회식 자리 배치와 같다. ON은 '부서마다 테이블을 하나씩 놓고 과장만 앉힌다(과장이 없으면 빈 테이블도 그대로 둔다)'이고, WHERE는 '다 앉힌 뒤 과장이 앉지 않은 테이블은 치운다'이다.",
+              "sql": "SELECT d.부서명, e.이름 AS 과장\nFROM 부서 d\n  LEFT JOIN 사원 e\n    ON d.부서번호 = e.부서번호 AND e.직급 = '과장'\nORDER BY d.부서번호;\n\nSELECT d.부서명, e.이름 AS 과장\nFROM 부서 d\n  LEFT JOIN 사원 e\n    ON d.부서번호 = e.부서번호\nWHERE e.직급 = '과장'\nORDER BY d.부서번호;",
+              "pitfalls": [
+                "OUTER JOIN 뒤 WHERE에 오른쪽 테이블 조건을 쓰면 외부 조인이 사실상 내부 조인으로 바뀐다. 의도한 것인지 꼭 확인한다.",
+                "예외로, WHERE e.사원번호 IS NULL 처럼 'NULL인 행'을 고르는 조건은 짝이 없는 행을 찾으려고 일부러 WHERE에 쓴다.",
+                "왼쪽(기준) 테이블에 대한 조건(d.지역 = '서울')은 WHERE에 써야 행이 걸러진다. LEFT JOIN의 ON에 쓰면 왼쪽 행은 하나도 걸러지지 않고, 조건에 안 맞는 부서에 짝만 안 붙는다."
+              ],
+              "oracle": [
+                "오라클 (+) 방식: WHERE d.부서번호 = e.부서번호(+) AND e.직급(+) = '과장' 처럼 오른쪽 조건에도 (+)를 붙이면 ON에 넣은 것(4행)과 같고, (+)를 빼면 WHERE에 넣은 것(2행)과 같다. SQLite에서는 표준 문법으로만 확인할 수 있다."
+              ],
+              "exam": "OUTER JOIN에서 조건을 ON에 둘 때와 WHERE에 둘 때의 결과 행 수를 비교하는 고난도 문제로 나온다. 작은 표를 두 번 따라가며 풀어야 한다.",
+              "quiz": [
+                {
+                  "q": "예제 테이블에서 FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 AND e.직급 = '대리' 의 결과 행 수는? (대리는 20번 부서에 1명, 30번 부서에 1명 있다)",
+                  "choices": ["2", "3", "4", "11"],
+                  "answer": 3,
+                  "explain": "부서는 LEFT 기준이라 4개 모두 남는다. 20번과 30번은 대리 한 명씩과 짝이 되고, 10번과 40번은 짝이 없어 NULL로 한 행씩 나온다. 모두 4행이다."
+                },
+                {
+                  "q": "위 SQL에서 조건 e.직급 = '대리'를 ON이 아니라 WHERE로 옮기면 결과 행 수는?",
+                  "choices": ["2", "3", "4", "11"],
+                  "answer": 1,
+                  "explain": "외부 조인을 다 한 뒤 직급이 '대리'인 행만 남기므로, 대리가 아닌 사원과 짝지어진 행(10번 부서)과 짝이 없어 직급이 NULL인 행(40번 부서)이 걸러진다. 대리가 있는 20번, 30번 두 행만 남는다."
                 }
               ]
             }

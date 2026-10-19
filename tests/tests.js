@@ -83,6 +83,7 @@ const DONE_UNITS = [
   'GROUP BY·HAVING 절',
   'ORDER BY 절',
   '조인',
+  '표준 조인',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -339,6 +340,33 @@ test('조인 단원: 카드·문제에 적은 값과 SQLite 동작', async () =>
   assert(fails('SELECT 사원.이름 FROM 사원 e, 부서 d WHERE e.부서번호 = d.부서번호'), '별칭 뒤 원래 이름');
   assert(fails('SELECT 1 FROM 사원 e, 부서 d WHERE e.부서번호(+) = d.부서번호'), '(+) 없음');
   eq(rows('SELECT 1 FROM 사원 AS e, 부서 AS d WHERE e.부서번호 = d.부서번호').length, 10, '테이블 별칭 AS 허용');
+  db.close();
+});
+
+test('표준 조인 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(rows("SELECT 1 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 JOIN 급여등급 g ON e.급여 BETWEEN g.최저급여 AND g.최고급여 WHERE d.지역 = '판교'").length, 4);
+  eq(one('SELECT COUNT(*) FROM 사원 JOIN 부서 USING (부서번호)'), [10]);
+  eq(one('SELECT COUNT(*) FROM 사원 NATURAL JOIN 부서'), [10]);
+  eq(one('SELECT COUNT(*) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호'), [11]);
+  eq(one('SELECT COUNT(*) FROM 사원 e LEFT JOIN 부서 d ON e.부서번호 = d.부서번호'), [11]);
+  eq(one('SELECT COUNT(*) FROM 사원 e RIGHT JOIN 부서 d ON e.부서번호 = d.부서번호'), [11]);
+  eq(one('SELECT COUNT(*) FROM 사원 e FULL OUTER JOIN 부서 d ON e.부서번호 = d.부서번호'), [12]);
+  eq(rows('SELECT e.이름, d.부서명 FROM 사원 e FULL OUTER JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.사원번호 IS NULL OR d.부서번호 IS NULL').length, 2);
+  eq(rows('SELECT d.부서명 FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 WHERE e.사원번호 IS NULL').flat(), ['연구']);
+  eq(one('SELECT COUNT(*) FROM 부서 CROSS JOIN 급여등급'), [20]);
+  eq(one("SELECT COUNT(*) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 AND e.직급 = '과장'"), [4]);
+  eq(one("SELECT COUNT(*) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 WHERE e.직급 = '과장'"), [2]);
+  eq(one("SELECT COUNT(*) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 AND e.직급 = '대리'"), [4]);
+  eq(one("SELECT COUNT(*) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 WHERE e.직급 = '대리'"), [2]);
+  eq(one("SELECT COUNT(*) FROM 부서 d LEFT JOIN 사원 e ON d.부서번호 = e.부서번호 AND d.지역 = '서울'"), [5], 'ON의 왼쪽 조건은 거르지 않음');
+  // 오라클과 다르다고 적은 SQLite 동작
+  eq(one('SELECT COUNT(*) FROM 사원 JOIN 부서'), [44], 'ON 없는 JOIN');
+  eq(one('SELECT COUNT(*) FROM 사원 e CROSS JOIN 부서 d ON e.부서번호 = d.부서번호'), [10], 'CROSS JOIN + ON');
+  eq(rows('SELECT e.부서번호 FROM 사원 e JOIN 부서 d USING (부서번호)').length, 10, 'USING 열에 별칭');
+  eq(rows('SELECT e.부서번호 FROM 사원 e NATURAL JOIN 부서 d').length, 10, 'NATURAL 열에 별칭');
+  assert(fails('SELECT 1 FROM 사원 NATURAL JOIN 부서 USING (부서번호)'), 'NATURAL + USING');
+  assert(fails('SELECT 1 FROM 사원 JOIN 부서 USING 부서번호'), 'USING 괄호');
   db.close();
 });
 
