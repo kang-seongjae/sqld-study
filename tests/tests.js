@@ -62,7 +62,7 @@ test('validateCards: 실제 data/cards.json에 오류 없음', async () => {
   eq(L.validateCards(data), []);
   const qs = L.collectQuestions(data);
   assert(qs.length >= 10, '하루 10문제를 채울 만큼');
-  eq(qs[0].id, 'select-basic#1');
+  eq(new Set(qs.map((q) => q.id)).size, qs.length, '문제 id가 모두 다름');
 });
 
 test('cards.json: 공식 출제 범위 2과목·30개 세부항목 구조', async () => {
@@ -75,16 +75,26 @@ test('cards.json: 공식 출제 범위 2과목·30개 세부항목 구조', asyn
   eq(topics.length, 30);
 });
 
-test('SELECT 기본과 WHERE 조건: 카드 5~8장, 카드마다 모든 항목과 문제 2개', async () => {
+// 다 채운 단원. 단원을 채울 때마다 여기에 추가한다.
+const DONE_UNITS = [
+  '관계형 데이터베이스 개요',
+  'SELECT 기본과 WHERE 조건',
+];
+
+test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
   const data = await (await fetch('../data/cards.json')).json();
-  const unit = data.subjects[1].units.find((u) => u.name === 'SELECT 기본과 WHERE 조건');
-  assert(unit.cards.length >= 5 && unit.cards.length <= 8, `카드 ${unit.cards.length}장`);
-  for (const c of unit.cards) {
-    for (const k of ['summary', 'desc', 'analogy', 'sql', 'exam']) assert(c[k], `${c.id}: ${k} 없음`);
-    assert(c.pitfalls.length > 0, `${c.id}: pitfalls 없음`);
-    assert(c.oracle.length > 0, `${c.id}: oracle 없음`);
-    eq(c.quiz.length, 2, `${c.id} 문제 수`);
-    for (const q of c.quiz) assert(q.explain, `${c.id}: 해설 없음`);
+  const units = data.subjects.flatMap((s) => s.units);
+  for (const name of DONE_UNITS) {
+    const unit = units.find((u) => u.name === name);
+    assert(unit, `단원 없음: ${name}`);
+    assert(unit.cards.length >= 5 && unit.cards.length <= 8, `${name}: 카드 ${unit.cards.length}장`);
+    for (const c of unit.cards) {
+      for (const k of ['summary', 'desc', 'analogy', 'sql', 'exam']) assert(c[k], `${c.id}: ${k} 없음`);
+      assert(c.pitfalls?.length > 0, `${c.id}: pitfalls 없음`);
+      // oracle은 실제로 다른 점이 있을 때만 쓴다(없으면 '오라클과 다름' 표시도 안 붙는다).
+      eq(c.quiz?.length, 2, `${c.id} 문제 수`);
+      for (const q of c.quiz) assert(q.explain, `${c.id}: 해설 없음`);
+    }
   }
 });
 
@@ -211,7 +221,17 @@ test('카드에 적은 SQLite 쪽 동작이 연습창 엔진(sql.js)에서 사�
   eq(one('SELECT COUNT(*) FROM (SELECT DISTINCT 직급, 부서번호 FROM 사원)'), [11]);
   eq(one('SELECT COUNT(*) FROM (SELECT DISTINCT 부서번호 FROM 사원)'), [4]);
   eq(one('SELECT COUNT(DISTINCT 부서번호) FROM 사원'), [3]);
-  for (const bad of ['SELECT UNIQUE 직급 FROM 사원', 'SELECT 이름, DISTINCT 직급 FROM 사원', 'SELECT 사원.이름 FROM 사원 e']) {
+  // 관계형 데이터베이스 개요
+  eq(one('PRAGMA foreign_keys'), [0], '외래키 검사 꺼짐');
+  db.exec("INSERT INTO 사원 (사원번호, 이름, 부서번호) VALUES (2000, '임시', 99)");
+  eq(one('SELECT COUNT(*) FROM 사원 WHERE 부서번호 = 99'), [1], '없는 부서번호도 들어감');
+  db.exec("INSERT INTO 사원 (사원번호, 이름, 급여) VALUES (2001, '임시2', '많이')");
+  eq(one('SELECT typeof(급여) FROM 사원 WHERE 사원번호 = 2001'), ['text'], 'INTEGER 열에 문자');
+  db.exec('DELETE FROM 사원 WHERE 사원번호 >= 2000');
+  eq(one('SELECT typeof(이름), typeof(급여), typeof(입사일), typeof(커미션) FROM 사원 WHERE 사원번호 = 1001'), ['text', 'integer', 'text', 'null']);
+  eq(one('SELECT COUNT(*) FROM 사원, 부서'), [44], '곱집합 11 × 4');
+  for (const bad of ['SELECT UNIQUE 직급 FROM 사원', 'SELECT 이름, DISTINCT 직급 FROM 사원', 'SELECT 사원.이름 FROM 사원 e',
+    "INSERT INTO 사원 (사원번호, 이름) VALUES (1001, '중복')", 'INSERT INTO 사원 (사원번호, 이름) VALUES (2002, NULL)']) {
     let failed = false;
     try { db.exec(bad); } catch { failed = true; }
     assert(failed, `오류가 나야 함: ${bad}`);
@@ -286,7 +306,11 @@ test('카드 화면: 처음엔 SELECT 단원, 항목별 구역, 실행 결과, �
   const w = f.contentWindow;
   const d = f.contentDocument;
   const card = () => d.querySelector('#view-cards .card');
-  eq(card().dataset.card, 'select-basic', '카드가 있는 첫 단원의 첫 카드');
+  eq(card().dataset.card, 'rdb-database', '카드가 있는 첫 단원의 첫 카드');
+  const sel = d.querySelector('#pick-unit');
+  sel.value = [...sel.options].find((o) => o.textContent.startsWith('SELECT 기본과 WHERE')).value;
+  sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+  eq(card().dataset.card, 'select-basic', '단원을 바꾸면 그 단원 첫 카드');
   assert(d.querySelector('.scope').textContent.includes('SELECT 문, WHERE 절'), '출제 범위 표시');
   eq(d.querySelectorAll('.card-nav button').length, 8);
   eq([...card().querySelectorAll('.sec-title')].map((e) => e.textContent),
