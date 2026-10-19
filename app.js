@@ -14,6 +14,10 @@ const $ = (sel) => document.querySelector(sel);
 const editor = $('#sql-editor');
 // 탐색기에서 접어 둔 과목(번호)
 const closedSubjects = new Set();
+// SQL 연습창: 예시 SQL이 없는 카드를 열면 저절로 접고, SQL 카드로 오면 다시 편다.
+// 사용자가 직접 접었다면(practiceClosedByUser) 직접 펴거나 '연습창으로 보내기'를 누를 때까지 그대로 둔다.
+let practiceClosedByUser = false;
+let lastCardId = null;
 
 let data = { subjects: [] };
 let dataErrors = [];
@@ -182,6 +186,19 @@ function setTreeOpen(open) {
   $('#btn-tree').setAttribute('aria-expanded', String(open));
 }
 
+function setPracticeOpen(open, { byUser = false } = {}) {
+  if (byUser) practiceClosedByUser = !open;
+  $('#app').classList.toggle('practice-hidden', !open);
+  for (const id of ['#btn-practice-close', '#btn-practice-open']) $(id).setAttribute('aria-expanded', String(open));
+}
+
+// 새 카드를 열었을 때만 판단한다(같은 카드를 다시 그릴 때는 사용자가 펼친 상태를 건드리지 않는다).
+function autoPractice(card) {
+  if (!card || card.id === lastCardId) return;
+  lastCardId = card.id;
+  if (!practiceClosedByUser) setPracticeOpen(Boolean(card.sql));
+}
+
 // ---------- 개념 카드 ----------
 
 function renderCards() {
@@ -200,6 +217,7 @@ function renderCards() {
   }
   const { subject, unit, card } = currentPlace();
   $('#title-path').textContent = [subject.name, unit?.name, card?.title].filter(Boolean).join(' / ');
+  autoPractice(card);
   if (unit) {
     view.append(h('p', { class: 'scope' }, '출제 범위: ',
       [unit.group, (unit.topics || [unit.name]).join(', ')].filter(Boolean).join(' › ')));
@@ -328,6 +346,7 @@ function exampleResultNodes(sql) {
 }
 
 function sendToEditor(sql) {
+  setPracticeOpen(true, { byUser: true });
   setEditorText(sql);
   state.sql = sql;
   save();
@@ -672,6 +691,11 @@ async function start() {
   // 폰에서는 탐색기를 접은 채로 시작한다.
   setTreeOpen(!isNarrow());
   $('#btn-tree').addEventListener('click', () => setTreeOpen($('#app').classList.contains('tree-hidden')));
+  $('#btn-practice-close').addEventListener('click', () => setPracticeOpen(false, { byUser: true }));
+  $('#btn-practice-open').addEventListener('click', () => {
+    setPracticeOpen(true, { byUser: true });
+    if (isNarrow()) $('#practice').scrollIntoView({ block: 'start' });
+  });
   document.addEventListener('keydown', onKeydown);
   for (const b of document.querySelectorAll('.tabs [data-tab]')) b.addEventListener('click', () => setTab(b.dataset.tab));
   $('#btn-run').addEventListener('click', runEditor);

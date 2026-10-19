@@ -42,7 +42,15 @@
       </section>
 
       <section class="panel panel-right" id="practice" aria-label="SQL 연습">
-        <div class="pane-head"><span>SQL 연습</span><span class="file-name">practice.sql</span></div>
+        <div class="pane-head">
+          <span>SQL 연습</span>
+          <span class="pane-head-right">
+            <span class="file-name">practice.sql</span>
+            <button type="button" class="icon-btn" id="btn-practice-close" aria-controls="practice" aria-expanded="true" title="SQL 연습창 접기">
+              <span aria-hidden="true">⟩</span><span class="sr-only">SQL 연습창 접기</span>
+            </button>
+          </span>
+        </div>
         <div class="practice-body">
           <p class="notice"><span class="warn-mark" aria-hidden="true">⚠</span> 여기서는 SQLite로 실행돼요. <strong>오라클과 문법이 다를 수 있어요.</strong></p>
           <details class="schema">
@@ -66,6 +74,11 @@
           </div>
         </div>
       </section>
+
+      <!-- 연습창을 접었을 때만 보이는 막대. 누르면 다시 펼친다. -->
+      <button type="button" class="practice-rail" id="btn-practice-open" aria-controls="practice" aria-expanded="true" title="SQL 연습창 펼치기">
+        <span aria-hidden="true">⟨</span><span class="rail-label">SQL 연습</span>
+      </button>
     </main>
 
     <footer class="statusbar" aria-label="상태">

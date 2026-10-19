@@ -1025,6 +1025,7 @@ function key(win, target, k, opts = {}) {
 test('화면: 노트북 너비에서는 카드와 연습창이 나란히', async () => {
   const f = await openApp('e2e-wide', 1280, 800);
   const d = f.contentDocument;
+  pickUnit(f, 'SELECT 기본과 WHERE'); // 예시 SQL이 있는 카드라 연습창이 펼쳐진다
   const left = d.querySelector('.panel-left').getBoundingClientRect();
   const right = d.querySelector('.panel-right').getBoundingClientRect();
   assert(left.right <= right.left, '왼쪽 패널이 오른쪽 패널의 왼쪽에');
@@ -1035,6 +1036,7 @@ test('화면: 노트북 너비에서는 카드와 연습창이 나란히', async
 test('화면: 폰 너비에서는 위아래로 쌓임, 가로 스크롤 없음', async () => {
   const f = await openApp('e2e-narrow', 390, 844);
   const d = f.contentDocument;
+  pickUnit(f, 'SELECT 기본과 WHERE');
   const left = d.querySelector('.panel-left').getBoundingClientRect();
   const right = d.querySelector('.panel-right').getBoundingClientRect();
   assert(right.top >= left.bottom, '연습창이 카드 아래에');
@@ -1064,6 +1066,45 @@ test('IDE 화면: 탐색기·탭·상태 표시줄, 폰에서는 탐색기를 �
   eq(p.querySelector('#explorer').getBoundingClientRect().height, 0, '폰: 단원을 고르면 다시 접힌다');
   eq(p.querySelector('#view-cards .card').dataset.card, 'order-basic');
   assert(p.documentElement.scrollWidth <= 390, `가로 넘침 ${p.documentElement.scrollWidth}`);
+});
+
+test('SQL 연습창 접기: SQL 없는 카드는 자동으로 접고, 직접 접은 것은 보내기·펼치기 전까지 유지', async () => {
+  const f = await openApp('e2e-practice', 1280, 800);
+  const w = f.contentWindow;
+  const d = f.contentDocument;
+  const app = d.querySelector('#app');
+  const cardWidth = () => d.querySelector('.panel-left').getBoundingClientRect().width;
+  const hidden = () => app.classList.contains('practice-hidden');
+
+  eq(d.querySelector('#view-cards .card').dataset.card, 'model-what');
+  assert(hidden(), '예시 SQL이 없는 1과목 카드: 처음부터 접힘');
+  eq(d.querySelector('#practice').getBoundingClientRect().width, 0);
+  assert(d.querySelector('#btn-practice-open').getBoundingClientRect().width > 0, '펼치기 막대가 보인다');
+  eq(d.querySelector('#btn-practice-open').getAttribute('aria-expanded'), 'false');
+  const wideCard = cardWidth();
+
+  pickUnit(f, 'SELECT 기본과 WHERE');
+  assert(!hidden(), 'SQL 카드로 오면 다시 펼쳐짐');
+  assert(cardWidth() < wideCard - 300, `접으면 카드가 넓어진다: ${wideCard} → ${cardWidth()}`);
+
+  d.querySelector('#btn-practice-close').click();
+  assert(hidden(), '직접 접기');
+  key(w, d.body, 'ArrowRight');
+  eq(d.querySelector('#view-cards .card').dataset.card, 'select-order');
+  assert(hidden(), '직접 접은 뒤에는 SQL 카드로 넘어가도 접힌 채');
+  d.querySelector('#view-cards [data-send]').click();
+  assert(!hidden(), '연습창으로 보내기를 누르면 펼쳐짐');
+  assert(d.querySelector('#sql-editor').value.startsWith('SELECT 이름, 급여 * 12'), '보낸 SQL이 연습창에');
+
+  pickUnit(f, '정규화'); // 1·2번째 카드는 예시 SQL이 있고, 3번째(제1정규형)는 없다
+  key(w, d.body, 'ArrowRight');
+  key(w, d.body, 'ArrowRight');
+  eq(d.querySelector('#view-cards .card').dataset.card, 'norm-1nf');
+  assert(hidden(), 'SQL 없는 카드를 열면 다시 자동으로 접힘');
+  d.querySelector('#btn-practice-open').click();
+  assert(!hidden(), '막대를 눌러 직접 펼치기');
+  key(w, d.body, '1'); // 같은 카드에서 문제를 풀어 화면을 다시 그려도
+  assert(!hidden(), '같은 카드를 다시 그릴 때는 직접 펼친 상태 유지');
 });
 
 test('IDE 화면: 단원의 문제를 모두 맞히면 트리에 완료 표시, 상태 표시줄 숫자가 바뀐다', async () => {

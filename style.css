@@ -114,6 +114,30 @@ code, pre { font-family: var(--mono); }
 .panel-left { grid-area: main; }
 .panel-right { grid-area: practice; }
 
+/* 연습창 접기: 접으면 오른쪽에 얇은 막대만 남고 카드 영역이 넓어진다 */
+.app.practice-hidden .panel-right { display: none; }
+.app.practice-hidden .layout { grid-template-columns: var(--side-w) minmax(0, 1fr) 36px; grid-template-areas: "tree main rail"; }
+.app.practice-hidden.tree-hidden .layout { grid-template-columns: minmax(0, 1fr) 36px; grid-template-areas: "main rail"; }
+.practice-rail {
+  grid-area: rail;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  min-height: 0;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--bg-side);
+  color: var(--muted);
+}
+.practice-rail:hover { color: var(--text); background: var(--bg-elev); }
+.app.practice-hidden .practice-rail { display: flex; }
+.rail-label { writing-mode: vertical-rl; letter-spacing: 0.08em; font-size: 0.85rem; }
+.pane-head-right { display: flex; align-items: center; gap: 6px; }
+.pane-head .icon-btn { width: 28px; min-height: 26px; font-size: 0.95rem; color: var(--muted); }
+
 .explorer, .panel { min-height: 0; overflow: auto; }
 .explorer { background: var(--bg-side); border-right: 1px solid var(--line); }
 .panel-left { background: var(--bg); }
@@ -430,6 +454,10 @@ table.result td.num { text-align: right; color: var(--tok-number); }
     overflow: auto;
   }
   .app.tree-hidden .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "practice"; }
+  .app.practice-hidden .layout { grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-areas: "tree main" "tree rail"; }
+  .app.practice-hidden.tree-hidden .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "rail"; }
+  .practice-rail { flex-direction: row; justify-content: flex-start; padding: 10px 16px; border-left: 0; border-top: 1px solid var(--line); }
+  .rail-label { writing-mode: horizontal-tb; }
   .explorer, .panel { overflow: visible; }
   .panel-right { border-left: 0; border-top: 1px solid var(--line); }
 }
@@ -438,6 +466,7 @@ table.result td.num { text-align: right; color: var(--tok-number); }
 @media (max-width: 860px) {
   .app { height: auto; min-height: 100vh; }
   .layout, .app.tree-hidden .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "tree" "main" "practice"; }
+  .app.practice-hidden .layout, .app.practice-hidden.tree-hidden .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "tree" "main" "rail"; }
   .explorer { border-right: 0; border-bottom: 1px solid var(--line); }
   .titlebar { flex-wrap: wrap; padding: 6px 10px; }
   .title-path { display: none; }
