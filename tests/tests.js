@@ -102,6 +102,7 @@ const DONE_UNITS = [
   '관계',
   '식별자',
   '정규화',
+  '관계와 조인의 이해',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -858,6 +859,23 @@ test('정규화 단원: 카드·문제에 적은 값과 SQLite 동작', async ()
     '부서번호 → 부서명, 지역');
   eq(rows('SELECT e.이름, d.부서명, d.지역 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.사원번호 = 1004'),
     [['최과장', '개발', '판교']]);
+  db.close();
+});
+
+test('관계와 조인의 이해 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows } = await seededDb();
+  eq(rows('SELECT e.이름, g.등급 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 JOIN 급여등급 g ON e.급여 BETWEEN g.최저급여 AND g.최고급여 WHERE d.부서번호 = 30').length, 4);
+  eq(rows('SELECT d.부서명 FROM 부서 d JOIN 사원 e ON d.부서번호 = e.부서번호 WHERE d.부서번호 = 20').length, 4, '1:M 조인은 M 쪽 행 수');
+  eq(one('SELECT COUNT(*), COUNT(DISTINCT d.부서번호) FROM 부서 d JOIN 사원 e ON d.부서번호 = e.부서번호'), [10, 3]);
+  eq(one('SELECT COUNT(*) FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호'), [10], '내부 조인');
+  eq(one('SELECT COUNT(*) FROM 사원 e LEFT JOIN 부서 d ON e.부서번호 = d.부서번호'), [11], '사원 기준 외부 조인');
+  eq(one('SELECT e.이름 FROM 사원 e LEFT JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE d.부서번호 IS NULL'), ['오인턴'], '늘어난 1행');
+  eq(one('SELECT COUNT(*) FROM 사원 e FULL OUTER JOIN 부서 d ON e.부서번호 = d.부서번호'), [12], '완전 외부 조인');
+  eq(one('SELECT COUNT(*) FROM 사원 e LEFT JOIN 사원 m ON e.관리자번호 = m.사원번호'), [11], '셀프 LEFT JOIN');
+  eq(one('SELECT COUNT(*) FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호'), [10], '셀프 내부 조인은 김대표 제외');
+  eq(rows('SELECT e.이름, m.이름 FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호 ORDER BY e.사원번호'),
+    [['이부장', '김대표'], ['박부장', '김대표'], ['최과장', '이부장'], ['정과장', '박부장'], ['강대리', '최과장'],
+      ['조대리', '정과장'], ['윤사원', '최과장'], ['장사원', '정과장'], ['한사원', '김대표'], ['오인턴', '이부장']], '계층 그림과 같음');
   db.close();
 });
 
