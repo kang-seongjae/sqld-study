@@ -104,6 +104,7 @@ const DONE_UNITS = [
   '정규화',
   '관계와 조인의 이해',
   '모델이 표현하는 트랜잭션의 이해',
+  'Null 속성의 이해',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -897,6 +898,33 @@ test('모델이 표현하는 트랜잭션의 이해 단원: 카드·문제에 �
   db.exec('UPDATE 사원 SET 급여 = 급여 + 1 WHERE 사원번호 = 1011');
   assert(fails('ROLLBACK'), '진행 중인 트랜잭션 없음');
   eq(one('SELECT 급여 FROM 사원 WHERE 사원번호 = 1011'), [2401], '자동 확정');
+  db.close();
+});
+
+test('Null 속성의 이해 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(one('SELECT COUNT(*), COUNT(커미션), COUNT(부서번호), COUNT(관리자번호) FROM 사원'), [11, 4, 10, 10]);
+  eq(rows('SELECT 이름 FROM 사원 WHERE 부서번호 IS NULL OR 관리자번호 IS NULL ORDER BY 사원번호').flat(), ['김대표', '오인턴']);
+  assert(fails('INSERT INTO 사원 (사원번호, 부서번호) VALUES (2000, 10)'), '이름은 NOT NULL');
+  // 참(1)·거짓(0)·UNKNOWN(NULL)
+  eq(one('SELECT NULL = NULL, NULL <> 1, (NULL AND 1), (NULL AND 0), (NULL OR 1), (NULL OR 0), (NOT NULL)'), [null, null, null, 0, 1, null, null]);
+  // 0으로 둘까, NULL로 둘까
+  eq(one('SELECT COUNT(커미션), SUM(커미션), AVG(커미션), ROUND(AVG(COALESCE(커미션, 0)), 1) FROM 사원'), [4, 1000, 250, 90.9]);
+  eq(one('SELECT AVG(x), AVG(COALESCE(x, 0)), SUM(x), SUM(COALESCE(x, 0)) FROM (SELECT 80 AS x UNION ALL SELECT NULL UNION ALL SELECT 60 UNION ALL SELECT NULL)'), [70, 35, 140, 140]);
+  eq(one('SELECT SUM(커미션), AVG(커미션) FROM 사원 WHERE 커미션 IS NULL'), [null, null], '모두 NULL이면 SUM·AVG도 NULL');
+  // NOT IN과 NULL
+  eq(one('SELECT COUNT(*) FROM 부서 WHERE 부서번호 NOT IN (SELECT 부서번호 FROM 사원)'), [0]);
+  eq(rows('SELECT 부서명 FROM 부서 WHERE 부서번호 NOT IN (SELECT 부서번호 FROM 사원 WHERE 부서번호 IS NOT NULL)').flat(), ['연구']);
+  db.exec('CREATE TABLE A (값 INTEGER); CREATE TABLE B (값 INTEGER); INSERT INTO A VALUES (1), (2), (3); INSERT INTO B VALUES (2), (NULL);');
+  eq(one('SELECT COUNT(*) FROM A WHERE 값 NOT IN (SELECT 값 FROM B)'), [0]);
+  eq(rows('SELECT 값 FROM A WHERE 값 NOT IN (SELECT 값 FROM B WHERE 값 IS NOT NULL) ORDER BY 1').flat(), [1, 3]);
+  eq(one('SELECT COUNT(*) FROM A WHERE 값 NOT IN (SELECT DISTINCT 값 FROM B)'), [0], 'DISTINCT는 NULL을 없애지 않음');
+  eq(rows('SELECT 값 FROM A WHERE 값 IN (SELECT 값 FROM B)').flat(), [2], 'IN은 NULL이 섞여도 찾음');
+  // 외래키 NULL과 조인
+  eq(one('SELECT COUNT(*) FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호'), [10]);
+  eq(rows('SELECT e.이름 FROM 사원 e LEFT JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.부서번호 IS NULL').flat(), ['오인턴']);
+  // 오라클과 다르다고 적은 SQLite 동작: 빈 문자열은 NULL이 아님
+  eq(one("SELECT '' IS NULL, LENGTH(''), NULLIF('', '') IS NULL"), [0, 0, 1]);
   db.close();
 });
 
