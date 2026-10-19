@@ -3191,7 +3191,213 @@
             }
           ]
         },
-        { "group": "관리 구문", "name": "DML", "cards": [] },
+        {
+          "group": "관리 구문",
+          "name": "DML",
+          "cards": [
+            {
+              "id": "dml-insert",
+              "title": "INSERT: 행 넣기",
+              "summary": "INSERT INTO 테이블 (열 목록) VALUES (값 목록)으로 새 행을 넣는다. 열 목록을 빼면 모든 열에, 테이블에 정의된 순서대로 값을 줘야 한다.",
+              "desc": "관계형 데이터베이스 개요 단원에서 DML은 데이터를 조회하고, 넣고, 고치고, 지우는 문장이라고 했다. 그중 INSERT는 행을 새로 넣는다.\n· 열 목록을 쓰는 방법: INSERT INTO 사원 (사원번호, 이름, 직급, 부서번호) VALUES (1012, '신입사', '사원', 50);\n  적은 열과 값이 순서대로 짝지어진다. 적지 않은 열(급여, 커미션 등)은 NULL(또는 테이블에 정해 둔 기본값)이 된다.\n· 열 목록을 빼는 방법: INSERT INTO 부서 VALUES (50, '기획', '서울');\n  테이블의 모든 열에, 테이블을 만들 때 정한 순서대로 값을 하나도 빠짐없이 줘야 한다.\n값의 개수가 맞지 않거나, NOT NULL 열(사원의 이름 등)에 값을 주지 않거나, 기본키가 겹치면 오류가 나고 행은 들어가지 않는다.\n예시 SQL은 50번 부서를 먼저 넣고, 그 부서의 신입 사원을 넣은 뒤 확인한다. 연습창에서 실행해 테이블이 바뀌었다면 '테이블 초기화'로 처음 상태로 되돌릴 수 있다.",
+              "analogy": "회원 가입 양식과 같다. 필수 칸(NOT NULL)을 비우거나 이미 쓰이는 아이디(기본키)를 넣으면 가입이 거절되고, 선택 칸은 비워 두면 빈칸(NULL)으로 저장된다.",
+              "sql": "INSERT INTO 부서 VALUES (50, '기획', '서울');\n\nINSERT INTO 사원 (사원번호, 이름, 직급, 부서번호)\nVALUES (1012, '신입사', '사원', 50);\n\nSELECT 사원번호, 이름, 직급, 급여, 커미션, 부서번호\nFROM 사원\nWHERE 사원번호 = 1012;",
+              "pitfalls": [
+                "열 목록을 빼면 값의 개수가 열 개수와 꼭 같아야 한다. 부서 테이블(열 3개)에 VALUES (60, '기획')처럼 2개만 주면 오류다.",
+                "열 목록의 순서는 테이블의 열 순서와 달라도 된다. INSERT INTO 부서 (부서명, 부서번호) VALUES ('총무', 80)처럼 적은 순서대로 짝만 맞으면 된다.",
+                "문자 값은 작은따옴표로 감싼다. VALUES (60, 기획, '서울')처럼 따옴표를 빼면 기획을 열 이름으로 읽어 오류가 난다."
+              ],
+              "oracle": [
+                "여러 행 한 번에 넣기: SQLite는 VALUES (...), (...)처럼 한 문장으로 여러 행을 넣을 수 있다. 오라클은 전통적으로 INSERT 한 문장에 한 행씩 넣고(23ai부터 여러 행 VALUES 허용), 여러 행은 INSERT ALL이나 INSERT ... SELECT로 넣는다.",
+                "확정 시점: 오라클은 INSERT 후 COMMIT을 해야 확정되고 다른 사용자에게도 보인다(TCL 단원). 연습창의 SQLite는 BEGIN 없이 실행하면 문장마다 바로 확정된다."
+              ],
+              "exam": "열 목록이 없는 INSERT에서 값 개수가 맞지 않거나, NOT NULL·기본키 제약을 어겨 오류가 나는 문장을 고르는 문제가 나온다. INSERT에서 생략한 열의 값(NULL)을 묻기도 한다.",
+              "quiz": [
+                {
+                  "q": "부서(부서번호, 부서명, 지역) 테이블에 오류 없이 들어가는 문장은? (부서번호가 기본키, 부서명은 NOT NULL이고 부서번호 10은 이미 있다)",
+                  "choices": ["INSERT INTO 부서 VALUES (90, '법무');", "INSERT INTO 부서 (부서번호, 지역) VALUES (90, '서울');", "INSERT INTO 부서 (부서명, 부서번호) VALUES ('법무', 90);", "INSERT INTO 부서 VALUES (10, '법무', '서울');"],
+                  "answer": 3,
+                  "explain": "열 목록의 순서는 테이블과 달라도 적은 순서대로 짝이 맞으면 된다. 1번은 값이 2개뿐이라 열 3개와 맞지 않고, 2번은 NOT NULL인 부서명이 비어 있고, 4번은 기본키 10이 겹친다."
+                },
+                {
+                  "q": "INSERT INTO 사원 (사원번호, 이름) VALUES (2000, '홍길동'); 을 실행한 뒤 그 행의 급여 값은? (급여 열에는 기본값을 정하지 않았다)",
+                  "choices": ["0", "NULL", "오류가 나서 행이 없다", "가장 최근에 넣은 사원의 급여"],
+                  "answer": 2,
+                  "explain": "열 목록에 없는 열은 기본값이 있으면 기본값, 없으면 NULL이 된다. 급여에는 기본값이 없으므로 NULL이다."
+                }
+              ]
+            },
+            {
+              "id": "dml-insert-select",
+              "title": "INSERT ... SELECT: 조회 결과를 한꺼번에 넣기",
+              "summary": "VALUES 대신 SELECT를 쓰면, SELECT가 돌려준 행들을 다른 테이블에 한 번에 넣을 수 있다.",
+              "desc": "INSERT INTO 고급여사원 (사원번호, 이름, 급여)\nSELECT 사원번호, 이름, 급여 FROM 사원 WHERE 급여 >= 6000;\nSELECT가 돌려준 행 수만큼(예제에서 3행) 한꺼번에 들어간다. VALUES와 함께 쓰지 않고, SELECT를 괄호로 감싸지도 않는다.\nINSERT의 열 목록과 SELECT의 열 목록은 개수와 순서가 맞아야 한다. 열 이름이 같을 필요는 없고, 위치로 짝지어진다.\n테이블을 새로 만들면서 데이터까지 복사하려면 CREATE TABLE ... AS SELECT(줄여서 CTAS)를 쓴다. CREATE TABLE 사원복사 AS SELECT * FROM 사원; 처럼 쓰고, WHERE 1 = 0처럼 늘 거짓인 조건을 주면 데이터 없이 구조만 복사된다. CREATE는 DDL이라 'DDL' 단원에서 자세히 다룬다.\n예시 SQL은 고급여사원 테이블을 만들고, 급여 6000 이상인 사원을 복사해 넣은 뒤 확인한다.",
+              "analogy": "휴대폰 주소록에서 '회사 동료' 그룹만 골라 새 단체 문자 명단에 한 번에 복사해 넣는 것과 같다. 한 명씩 다시 입력할 필요가 없다.",
+              "sql": "CREATE TABLE 고급여사원 (\n  사원번호 INTEGER,\n  이름     TEXT,\n  급여     INTEGER\n);\n\nINSERT INTO 고급여사원 (사원번호, 이름, 급여)\nSELECT 사원번호, 이름, 급여\nFROM 사원\nWHERE 급여 >= 6000;\n\nSELECT * FROM 고급여사원;",
+              "pitfalls": [
+                "INSERT ... SELECT에는 VALUES를 쓰지 않는다. INSERT INTO 백업 VALUES (SELECT * FROM 사원)은 문법 오류다.",
+                "SELECT 결과가 0행이면 오류 없이 아무것도 들어가지 않는다.",
+                "CTAS로 만든 테이블에는 기본키 같은 제약 조건이 따라오지 않는다. 필요하면 테이블을 만든 뒤 따로 추가한다."
+              ],
+              "oracle": [
+                "CTAS와 NOT NULL: 오라클의 CREATE TABLE ... AS SELECT는 원래 테이블의 NOT NULL 제약을 함께 복사한다(기본키 등 다른 제약은 복사하지 않는다). SQLite의 CTAS는 NOT NULL도 복사하지 않는다."
+              ],
+              "exam": "INSERT ... SELECT로 들어가는 행 수를 묻거나, CTAS로 테이블을 복사했을 때 무엇이 함께 복사되는지(데이터와 NOT NULL은 복사, 기본키 등 다른 제약은 복사되지 않음)를 묻는다.",
+              "quiz": [
+                {
+                  "q": "INSERT INTO 백업 SELECT * FROM 사원 WHERE 부서번호 = 20; 에 대한 설명으로 옳은 것은? (백업은 사원과 구조가 같은 빈 테이블이다)",
+                  "choices": ["SELECT를 괄호로 감싸지 않아서 문법 오류다", "VALUES가 없어서 문법 오류다", "20번 부서 사원 수만큼 행이 들어간다", "조건에 맞는 첫 행 하나만 들어간다"],
+                  "answer": 3,
+                  "explain": "INSERT ... SELECT는 VALUES 없이 SELECT를 그대로 이어 쓰고, SELECT가 돌려준 모든 행이 들어간다."
+                },
+                {
+                  "q": "오라클에서 CREATE TABLE 사원2 AS SELECT * FROM 사원; 을 실행했을 때 사원2에 복사되지 않는 것은?",
+                  "choices": ["사원 테이블의 데이터", "열 이름", "NOT NULL 제약", "기본키(PRIMARY KEY) 제약"],
+                  "answer": 4,
+                  "explain": "CTAS는 데이터와 열 구성, NOT NULL 제약을 복사하지만 기본키·외래키·UNIQUE 같은 다른 제약은 복사하지 않는다."
+                }
+              ]
+            },
+            {
+              "id": "dml-update",
+              "title": "UPDATE: 값 고치기",
+              "summary": "UPDATE 테이블 SET 열 = 새값 WHERE 조건 으로, 조건에 맞는 행의 값을 바꾼다. WHERE를 빼면 모든 행이 바뀐다.",
+              "desc": "UPDATE 사원\nSET 급여 = 급여 + 300\nWHERE 부서번호 = 30;\n· SET: 어떤 열을 어떤 값으로 바꿀지 적는다. 오른쪽에는 상수뿐 아니라 급여 + 300 같은 계산식도 쓸 수 있다. 이때 오른쪽의 급여는 '바꾸기 전 값'이다.\n· WHERE: 바꿀 행을 고르는 조건. SELECT의 WHERE와 똑같이 쓴다.\nWHERE를 빼면 테이블의 모든 행이 바뀐다. 사고가 가장 많이 나는 곳이라, 실무에서는 같은 WHERE로 SELECT를 먼저 해서 몇 행이 바뀔지 확인한 다음 UPDATE를 실행하는 습관을 들인다.\nNULL 조건도 SELECT 기본과 WHERE 조건 단원과 같다. WHERE 커미션 = NULL 은 오류 없이 0행을 바꾸고, WHERE 커미션 IS NULL 이라고 써야 커미션이 NULL인 7행이 바뀐다.\n예시 SQL은 30번 부서 4명의 급여를 300씩 올리고 결과를 확인한다.",
+              "analogy": "명렬표에서 '3반 학생만 점수에 3점 더하기'를 하는 것과 같다. '3반만'이라는 조건(WHERE)을 빼먹으면 전교생의 점수가 바뀐다.",
+              "sql": "UPDATE 사원\nSET 급여 = 급여 + 300\nWHERE 부서번호 = 30;\n\nSELECT 이름, 급여\nFROM 사원\nWHERE 부서번호 = 30;",
+              "pitfalls": [
+                "WHERE가 없으면 모든 행이 바뀐다. 오류도 경고도 나오지 않는다.",
+                "SET의 오른쪽 식은 모두 바꾸기 전의 값으로 계산한다. 그래서 SET 급여 = 커미션, 커미션 = 급여 는 두 값을 맞바꾼다.",
+                "WHERE 커미션 = NULL 은 0행을 바꾼다. NULL은 IS NULL로 찾는다."
+              ],
+              "oracle": [
+                "되돌리기: 오라클에서는 UPDATE 후 COMMIT하기 전까지 ROLLBACK으로 되돌릴 수 있다. 연습창의 SQLite는 BEGIN 없이 실행하면 바로 확정되므로(TCL 단원), 연습창에서는 '테이블 초기화' 버튼으로 되돌린다."
+              ],
+              "exam": "UPDATE를 실행한 뒤 특정 행의 값이나 바뀐 행 수를 묻는다. WHERE가 빠진 UPDATE, = NULL 조건을 쓴 UPDATE가 함정으로 나온다.",
+              "quiz": [
+                {
+                  "q": "커미션이 NULL인 사원이 7명, 0인 사원이 1명 있다. UPDATE 사원 SET 커미션 = 100 WHERE 커미션 = NULL; 을 실행하면 바뀌는 행 수는?",
+                  "choices": ["0", "1", "7", "8"],
+                  "answer": 1,
+                  "explain": "NULL과의 = 비교는 UNKNOWN이라 어떤 행도 조건을 만족하지 못한다. 오류 없이 0행이 바뀐다. NULL인 7행을 바꾸려면 IS NULL을 쓴다."
+                },
+                {
+                  "q": "급여가 1000, 커미션이 200인 행에 UPDATE 사원 SET 급여 = 급여 + 커미션, 커미션 = 급여 WHERE ... 를 실행한 뒤의 커미션 값은?",
+                  "choices": ["200", "1200", "1000", "NULL"],
+                  "answer": 3,
+                  "explain": "SET의 오른쪽 식은 모두 바꾸기 전의 값으로 계산한다. 커미션에는 바꾸기 전 급여인 1000이 들어간다(급여는 1200이 된다)."
+                }
+              ]
+            },
+            {
+              "id": "dml-update-subquery",
+              "title": "여러 열 고치기와 서브쿼리로 고치기",
+              "summary": "SET에 여러 열을 쉼표로 이어 한 번에 바꿀 수 있고, 서브쿼리가 돌려준 값을 새 값으로 쓸 수도 있다.",
+              "desc": "· 여러 열 한 번에: UPDATE 사원 SET 직급 = '과장', 급여 = 급여 + 500 WHERE 이름 = '강대리';\n· 서브쿼리 값으로: 서브쿼리 단원에서 배운 단일행 서브쿼리를 SET 오른쪽에 쓸 수 있다.\n  UPDATE 사원 SET 급여 = (SELECT AVG(급여) FROM 사원 WHERE 직급 = '사원') WHERE 사원번호 = 1011;\n  이 서브쿼리는 값을 하나만(1행 1열) 돌려줘야 한다. 여러 행이 나오면 오류가 나고, 0행이면 NULL이 들어간다.\n· 여러 열을 서브쿼리 하나로: SET (직급, 급여) = (SELECT ..., ... FROM ...)처럼 괄호로 묶어 쓸 수도 있다.\n· WHERE에도 서브쿼리를 쓸 수 있다: UPDATE·DELETE ... WHERE 급여 < (SELECT AVG(급여) FROM 사원)\n예시 SQL은 강대리를 과장으로 바꾸면서 급여를 500 올리고, 오인턴의 급여를 '사원' 직급의 평균(3200)으로 맞춘 뒤 두 사람을 확인한다.",
+              "analogy": "인사 발령 공문과 같다. '강대리: 직급 과장, 급여 500 인상'처럼 한 사람의 여러 항목을 한 줄에 적고, '오인턴: 급여는 사원 평균에 맞춤'처럼 다른 자료에서 계산한 값을 가져다 쓰기도 한다.",
+              "sql": "UPDATE 사원\nSET 직급 = '과장', 급여 = 급여 + 500\nWHERE 이름 = '강대리';\n\nUPDATE 사원\nSET 급여 = (SELECT AVG(급여) FROM 사원 WHERE 직급 = '사원')\nWHERE 사원번호 = 1011;\n\nSELECT 사원번호, 이름, 직급, 급여\nFROM 사원\nWHERE 사원번호 IN (1006, 1011);",
+              "pitfalls": [
+                "SET 오른쪽의 서브쿼리가 여러 행을 돌려주면 오류다. (SELECT 급여 FROM 사원 WHERE 직급 = '사원')은 3행이라 오라클에서 오류가 난다.",
+                "서브쿼리 결과가 0행이면 오류가 아니라 NULL이 들어간다. 조건을 잘못 써서 값이 NULL로 덮이는 사고에 주의한다.",
+                "UPDATE의 WHERE를 빼면 서브쿼리를 쓰더라도 모든 행이 같은 값으로 바뀐다."
+              ],
+              "oracle": [
+                "여러 행을 돌려주는 서브쿼리: 오라클은 SET이나 WHERE의 단일행 자리에 쓴 서브쿼리가 2행 이상을 돌려주면 오류(단일 행 하위 질의에 2개 이상의 행이 리턴됨)가 난다. SQLite는 오류 없이 첫 번째 행의 값만 쓴다. 연습창에서 오류가 안 난다고 맞는 SQL이 아니다."
+              ],
+              "exam": "SET에 서브쿼리를 쓴 UPDATE의 결과 값을 묻거나, 서브쿼리가 여러 행을 돌려줘서 오류가 나는 문장을 고르는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "UPDATE 사원 SET 급여 = (SELECT 급여 FROM 사원 WHERE 직급 = '사원') WHERE 사원번호 = 1011; 을 오라클에서 실행하면? ('사원' 직급인 사람은 3명이다)",
+                  "choices": ["3명 급여의 평균이 들어간다", "첫 번째 사원의 급여가 들어간다", "급여가 NULL이 된다", "서브쿼리가 여러 행을 돌려줘서 오류가 난다"],
+                  "answer": 4,
+                  "explain": "SET 오른쪽은 값 하나가 필요한 자리라서 단일행 서브쿼리만 쓸 수 있다. 3행이 나오면 오라클은 오류를 낸다. 평균을 넣으려면 AVG(급여)처럼 집계해서 한 행으로 만든다."
+                },
+                {
+                  "q": "UPDATE 사원 SET 직급 = '부장', 급여 = 7000 WHERE 사원번호 = 9999; 에 대한 설명으로 옳은 것은? (사원번호 9999인 사원은 없다)",
+                  "choices": ["SET에는 열을 하나만 쓸 수 있어 문법 오류다", "오류 없이 0행이 바뀐다", "직급만 바뀌고 급여는 무시된다", "사원번호 9999인 새 행이 만들어진다"],
+                  "answer": 2,
+                  "explain": "SET에는 '열 = 값'을 쉼표로 여러 개 쓸 수 있다. 조건에 맞는 행이 없으면 아무 행도 바뀌지 않을 뿐 새 행이 생기지는 않는다. '없으면 넣기'는 MERGE가 하는 일이다."
+                }
+              ]
+            },
+            {
+              "id": "dml-delete",
+              "title": "DELETE, 그리고 TRUNCATE·DROP과의 차이",
+              "summary": "DELETE는 조건에 맞는 행을 지우는 DML이다. 테이블을 통째로 비우는 TRUNCATE, 테이블 자체를 없애는 DROP과 구분해야 한다.",
+              "desc": "DELETE FROM 사원 WHERE 부서번호 IS NULL;\n· WHERE에 맞는 행만 지운다. WHERE를 빼면 모든 행을 지우지만 테이블(구조)은 남는다.\n· DML이므로 오라클에서는 COMMIT하기 전에 ROLLBACK으로 되돌릴 수 있다.\n관계형 데이터베이스 개요 단원에서 본 것처럼 '지우는' 명령은 셋이고 성격이 서로 다르다.\n· DELETE: 행을 골라서 지운다(DML). 되돌릴 수 있다.\n· TRUNCATE TABLE 사원: 모든 행을 한꺼번에 비운다(DDL). 구조는 남는다. 오라클에서는 자동으로 COMMIT되어 되돌릴 수 없다. 행마다 되돌리기용 기록을 남기지 않아 DELETE보다 빠르다.\n· DROP TABLE 사원: 테이블 자체(구조와 데이터)를 없앤다(DDL). 되돌릴 수 없다.\n예시 SQL은 부서가 없는 오인턴을 지우고 남은 사원 수(10명)를 확인한 다음, 급여등급 테이블을 WHERE 없이 비워도 테이블은 남아 있음(0행)을 보여 준다.",
+              "analogy": "공책으로 치면 DELETE는 지우개로 몇 줄을 지우는 것(되살릴 수 있게 지운 기록을 남긴다), TRUNCATE는 적힌 쪽을 모두 뜯어내고 빈 공책만 남기는 것, DROP은 공책을 통째로 버리는 것이다.",
+              "figures": [
+                {
+                  "title": "지우는 명령 비교 (오라클 기준)",
+                  "columns": ["구분", "DELETE", "TRUNCATE", "DROP"],
+                  "rows": [
+                    ["명령 종류", "DML", "DDL", "DDL"],
+                    ["지우는 대상", "조건에 맞는 행", "모든 행", "테이블 전체(구조 포함)"],
+                    ["WHERE", "쓸 수 있음", "쓸 수 없음", "쓸 수 없음"],
+                    ["테이블 구조", "남음", "남음", "없어짐"],
+                    ["ROLLBACK", "COMMIT 전이면 가능", "불가(자동 COMMIT)", "불가(자동 COMMIT)"]
+                  ]
+                }
+              ],
+              "sql": "DELETE FROM 사원\nWHERE 부서번호 IS NULL;\n\nSELECT COUNT(*) AS 남은사원 FROM 사원;\n\nDELETE FROM 급여등급;\n\nSELECT COUNT(*) AS 남은등급 FROM 급여등급;",
+              "pitfalls": [
+                "WHERE 없는 DELETE도 테이블은 남긴다. 테이블을 없애는 것은 DROP이다.",
+                "TRUNCATE는 행을 지우지만 DML이 아니라 DDL이다. 그래서 오라클에서는 실행하자마자 COMMIT되어 ROLLBACK할 수 없다.",
+                "오라클에서 DELETE로 모든 행을 지워도 테이블이 쓰던 저장 공간은 그대로 남는다. TRUNCATE는 기본적으로 저장 공간도 돌려준다."
+              ],
+              "oracle": [
+                "TRUNCATE: SQLite에는 TRUNCATE 문이 없다. 연습창에서는 WHERE 없는 DELETE FROM 테이블 로 대신한다.",
+                "FROM 생략: 오라클은 DELETE 사원 WHERE ... 처럼 FROM을 생략해도 되지만, SQLite는 FROM이 꼭 있어야 한다."
+              ],
+              "exam": "DELETE, TRUNCATE, DROP의 차이(명령어 종류, ROLLBACK 가능 여부, 구조가 남는지)를 묻는 문제가 매우 자주 나온다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 ① DELETE FROM 사원; ② ROLLBACK; ③ SELECT COUNT(*) FROM 사원; 을 차례로 실행했다. 처음에 사원 테이블에 10행이 있었다면 ③의 결과는?",
+                  "choices": ["0", "10", "오류(테이블 없음)", "NULL"],
+                  "answer": 2,
+                  "explain": "DELETE는 DML이라 COMMIT하기 전이면 ROLLBACK으로 되돌릴 수 있다. 지운 10행이 되살아난다."
+                },
+                {
+                  "q": "위에서 ①을 TRUNCATE TABLE 사원; 으로 바꾸면 ③의 결과는?",
+                  "choices": ["0", "10", "오류(테이블 없음)", "NULL"],
+                  "answer": 1,
+                  "explain": "TRUNCATE는 DDL이라 실행 즉시 자동으로 COMMIT된다. ROLLBACK해도 행이 되살아나지 않고, 테이블 구조는 남아 있으므로 0이다."
+                }
+              ]
+            },
+            {
+              "id": "dml-merge",
+              "title": "MERGE: 있으면 고치고 없으면 넣기",
+              "summary": "MERGE는 조건으로 짝을 맞춰 보고, 짝이 있으면 UPDATE, 없으면 INSERT를 한 문장으로 처리한다.",
+              "desc": "새 부서 목록을 받아 부서 테이블에 반영한다고 하자. 이미 있는 부서번호는 이름과 지역을 고치고, 없는 부서번호는 새로 넣어야 한다. UPDATE와 INSERT를 따로 쓰면 '이미 있는지' 확인하는 일까지 여러 번 해야 한다. 오라클의 MERGE는 이것을 한 문장으로 한다.\nMERGE INTO 부서 d\nUSING (SELECT 20 AS 부서번호, '플랫폼개발' AS 부서명, '판교' AS 지역 FROM DUAL\n       UNION ALL\n       SELECT 50, '기획', '서울' FROM DUAL) s\nON (d.부서번호 = s.부서번호)\nWHEN MATCHED THEN\n  UPDATE SET d.부서명 = s.부서명, d.지역 = s.지역\nWHEN NOT MATCHED THEN\n  INSERT (부서번호, 부서명, 지역) VALUES (s.부서번호, s.부서명, s.지역);\n· INTO: 바꿀 대상 테이블 / USING: 반영할 원본(테이블이나 서브쿼리) / ON: 짝을 맞추는 조건(괄호 필수)\n· WHEN MATCHED: 짝이 있으면 UPDATE / WHEN NOT MATCHED: 짝이 없으면 INSERT\n두 WHEN 중 하나만 써도 된다.\nSQLite에는 MERGE가 없다. 예시 SQL은 기본키가 겹치면 UPDATE로 바꿔 주는 SQLite의 INSERT ... ON CONFLICT DO UPDATE(업서트)로 같은 결과를 만든다. 20번은 이름이 바뀌고 50번은 새로 들어가서 부서가 5개가 된다.",
+              "analogy": "출석부에 새 명단을 반영하는 일과 같다. 명단의 학생이 출석부에 이미 있으면 연락처만 고치고(MATCHED → UPDATE), 없으면 새 줄을 추가한다(NOT MATCHED → INSERT).",
+              "sql": "INSERT INTO 부서 (부서번호, 부서명, 지역)\nVALUES (20, '플랫폼개발', '판교'),\n       (50, '기획', '서울')\nON CONFLICT (부서번호) DO UPDATE\nSET 부서명 = excluded.부서명,\n    지역 = excluded.지역;\n\nSELECT * FROM 부서 ORDER BY 부서번호;",
+              "pitfalls": [
+                "ON 조건에 쓴 열(부서번호)은 WHEN MATCHED의 UPDATE SET에서 바꿀 수 없다. 짝을 맞춘 기준을 바꾸면 안 되기 때문이다(오라클에서 오류).",
+                "ON 조건은 괄호로 감싼다. ON d.부서번호 = s.부서번호 처럼 괄호를 빼면 오라클에서 문법 오류다.",
+                "USING 원본에서 대상의 한 행과 짝이 되는 행이 둘 이상이면, 어느 값으로 고칠지 정할 수 없어 오류가 난다."
+              ],
+              "oracle": [
+                "MERGE: 오라클(9i부터)의 MERGE 문은 SQLite에 없다. SQLite에서는 기본키나 UNIQUE 열이 겹칠 때의 동작을 정하는 INSERT ... ON CONFLICT (열) DO UPDATE SET ... 으로 비슷한 일을 한다. 여기서 excluded.열 은 '넣으려다 겹쳐서 막힌 새 값'을 가리킨다."
+              ],
+              "exam": "MERGE를 실행한 뒤 대상 테이블의 행 수나 특정 행의 값을 묻는 문제, WHEN MATCHED와 WHEN NOT MATCHED에 각각 어떤 문장(UPDATE, INSERT)이 오는지 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "대상 테이블에 부서번호 10, 20, 30이 있고 USING 원본에 20, 40이 있다. ON (대상.부서번호 = 원본.부서번호)로 짝이 있으면 UPDATE, 없으면 INSERT하는 MERGE를 실행한 뒤 대상 테이블의 행 수는?",
+                  "choices": ["3", "4", "5", "2"],
+                  "answer": 2,
+                  "explain": "20은 짝이 있어 UPDATE만 되고, 40은 짝이 없어 INSERT된다. 3행 + 1행 = 4행이다. 원본에 없는 10, 30은 그대로 남는다."
+                },
+                {
+                  "q": "오라클 MERGE 문에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["WHEN MATCHED 절에는 UPDATE를 쓴다", "WHEN NOT MATCHED 절에는 INSERT를 쓴다", "WHEN MATCHED와 WHEN NOT MATCHED 중 하나만 써도 된다", "ON 조건에 쓴 열도 WHEN MATCHED의 UPDATE에서 자유롭게 바꿀 수 있다"],
+                  "answer": 4,
+                  "explain": "ON 조건에 쓴 열은 짝을 맞추는 기준이라 WHEN MATCHED의 UPDATE에서 바꿀 수 없다. 바꾸려고 하면 오류가 난다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "관리 구문", "name": "TCL", "cards": [] },
         { "group": "관리 구문", "name": "DDL", "cards": [] },
         { "group": "관리 구문", "name": "DCL", "cards": [] }

@@ -92,6 +92,7 @@ const DONE_UNITS = [
   '계층형 질의와 셀프 조인',
   'PIVOT 절과 UNPIVOT 절',
   '정규 표현식',
+  'DML',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -647,6 +648,65 @@ test('정규 표현식 단원: 카드·문제에 적은 값과 SQLite 동작', a
   }
   assert(fails("SELECT '김대표' REGEXP '('"), '틀린 패턴은 오류');
   db.close();
+});
+
+test('DML 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  // INSERT
+  db.exec("INSERT INTO 부서 VALUES (50, '기획', '서울'); INSERT INTO 사원 (사원번호, 이름, 직급, 부서번호) VALUES (1012, '신입사', '사원', 50)");
+  eq(one('SELECT 급여, 커미션 FROM 사원 WHERE 사원번호 = 1012'), [null, null], '생략한 열은 NULL');
+  assert(fails("INSERT INTO 부서 VALUES (60, '기획')"), '값 개수 부족');
+  assert(fails("INSERT INTO 사원 (사원번호, 직급) VALUES (1013, '사원')"), 'NOT NULL 이름');
+  assert(fails("INSERT INTO 부서 VALUES (10, '법무', '서울')"), '기본키 중복');
+  assert(fails("INSERT INTO 부서 VALUES (60, 기획, '서울')"), '따옴표 없는 문자');
+  db.exec("INSERT INTO 부서 (부서명, 부서번호) VALUES ('법무', 90)");
+  eq(one('SELECT 부서명, 지역 FROM 부서 WHERE 부서번호 = 90'), ['법무', null], '열 순서 바꿔 넣기');
+  db.exec("INSERT INTO 부서 VALUES (60, 'A', 'B'), (70, 'C', 'D')");
+  eq(one('SELECT COUNT(*) FROM 부서 WHERE 부서번호 IN (60, 70)'), [2], 'SQLite 여러 행 VALUES');
+  // INSERT ... SELECT, CTAS
+  db.exec('CREATE TABLE 고급여사원 (사원번호 INTEGER, 이름 TEXT, 급여 INTEGER); INSERT INTO 고급여사원 SELECT 사원번호, 이름, 급여 FROM 사원 WHERE 급여 >= 6000');
+  eq(rows('SELECT 이름 FROM 고급여사원 ORDER BY 사원번호').flat(), ['김대표', '이부장', '박부장']);
+  db.exec('CREATE TABLE 백업 AS SELECT * FROM 사원 WHERE 1 = 0');
+  eq(one('SELECT COUNT(*) FROM 백업'), [0], '구조만 복사');
+  db.exec('INSERT INTO 백업 SELECT * FROM 사원 WHERE 부서번호 = 20');
+  eq(one('SELECT COUNT(*) FROM 백업'), [4]);
+  assert(fails('INSERT INTO 백업 VALUES (SELECT * FROM 사원)'), 'VALUES (SELECT ...)');
+  db.exec('CREATE TABLE 부서2 AS SELECT * FROM 부서; INSERT INTO 부서2 (부서번호) VALUES (99)');
+  eq(one('SELECT COUNT(*) FROM 부서2 WHERE 부서명 IS NULL'), [1], 'SQLite CTAS는 NOT NULL을 복사하지 않음');
+  db.close();
+
+  const s = await seededDb();
+  s.db.exec('UPDATE 사원 SET 급여 = 급여 + 300 WHERE 부서번호 = 30');
+  eq(s.rows('SELECT 급여 FROM 사원 WHERE 부서번호 = 30 ORDER BY 사원번호').flat(), [6500, 5100, 4200, 3500]);
+  s.db.exec('UPDATE 사원 SET 커미션 = 100 WHERE 커미션 = NULL');
+  eq(s.one('SELECT changes()'), [0], '= NULL은 0행');
+  s.db.exec('UPDATE 사원 SET 커미션 = 0 WHERE 커미션 IS NULL');
+  eq(s.one('SELECT changes()'), [7], 'IS NULL은 7행');
+  s.db.exec('CREATE TABLE t (급여, 커미션); INSERT INTO t VALUES (1000, 200); UPDATE t SET 급여 = 급여 + 커미션, 커미션 = 급여');
+  eq(s.one('SELECT 급여, 커미션 FROM t'), [1200, 1000], 'SET 오른쪽은 바꾸기 전 값');
+  s.db.close();
+
+  const u = await seededDb();
+  u.db.exec("UPDATE 사원 SET 직급 = '과장', 급여 = 급여 + 500 WHERE 이름 = '강대리'; UPDATE 사원 SET 급여 = (SELECT AVG(급여) FROM 사원 WHERE 직급 = '사원') WHERE 사원번호 = 1011");
+  eq(u.rows('SELECT 직급, 급여 FROM 사원 WHERE 사원번호 IN (1006, 1011) ORDER BY 사원번호'), [['과장', 4500], ['인턴', 3200]]);
+  u.db.exec("UPDATE 사원 SET 급여 = (SELECT 급여 FROM 사원 WHERE 직급 = '없음') WHERE 사원번호 = 1011");
+  eq(u.one('SELECT 급여 FROM 사원 WHERE 사원번호 = 1011'), [null], '0행 서브쿼리는 NULL');
+  u.db.exec("UPDATE 사원 SET 급여 = (SELECT 급여 FROM 사원 WHERE 직급 = '사원' ORDER BY 사원번호) WHERE 사원번호 = 1011");
+  eq(u.one('SELECT 급여 FROM 사원 WHERE 사원번호 = 1011'), [3300], 'SQLite는 여러 행 서브쿼리의 첫 행을 씀');
+  u.db.exec("UPDATE 사원 SET 직급 = '부장', 급여 = 7000 WHERE 사원번호 = 9999");
+  eq(u.one('SELECT changes(), COUNT(*) FROM 사원'), [0, 11], '없는 행은 0행');
+  u.db.close();
+
+  const d = await seededDb();
+  d.db.exec('DELETE FROM 사원 WHERE 부서번호 IS NULL; DELETE FROM 급여등급');
+  eq(d.one('SELECT (SELECT COUNT(*) FROM 사원), (SELECT COUNT(*) FROM 급여등급)'), [10, 0], 'DELETE 후에도 테이블은 남음');
+  assert(d.fails('TRUNCATE TABLE 급여등급'), 'TRUNCATE 없음');
+  assert(d.fails('DELETE 사원 WHERE 사원번호 = 1001'), 'FROM 없는 DELETE 안 됨');
+  d.db.exec("INSERT INTO 부서 (부서번호, 부서명, 지역) VALUES (20, '플랫폼개발', '판교'), (50, '기획', '서울') ON CONFLICT (부서번호) DO UPDATE SET 부서명 = excluded.부서명, 지역 = excluded.지역");
+  eq(d.one('SELECT COUNT(*) FROM 부서'), [5], '업서트: 20 고침, 50 넣음');
+  eq(d.one('SELECT 부서명 FROM 부서 WHERE 부서번호 = 20'), ['플랫폼개발']);
+  assert(d.fails("MERGE INTO 부서 d USING (SELECT 20 AS 부서번호) s ON (d.부서번호 = s.부서번호) WHEN MATCHED THEN UPDATE SET d.지역 = '서울'"), 'MERGE 없음');
+  d.db.close();
 });
 
 // ---------- 실제 앱 화면 (iframe) ----------
