@@ -105,6 +105,7 @@ const DONE_UNITS = [
   '관계와 조인의 이해',
   '모델이 표현하는 트랜잭션의 이해',
   'Null 속성의 이해',
+  '본질식별자 vs 인조식별자',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -925,6 +926,29 @@ test('Null 속성의 이해 단원: 카드·문제에 적은 값과 SQLite 동�
   eq(rows('SELECT e.이름 FROM 사원 e LEFT JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.부서번호 IS NULL').flat(), ['오인턴']);
   // 오라클과 다르다고 적은 SQLite 동작: 빈 문자열은 NULL이 아님
   eq(one("SELECT '' IS NULL, LENGTH(''), NULLIF('', '') IS NULL"), [0, 0, 1]);
+  db.close();
+});
+
+test('본질식별자 vs 인조식별자 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, rows, fails } = await seededDb();
+  // 인조식별자 기본키는 업무 값의 중복을 막지 못함
+  db.exec('CREATE TABLE 주문상품 (주문상품번호 INTEGER PRIMARY KEY, 주문번호 INTEGER, 상품번호 INTEGER, 수량 INTEGER);'
+    + 'INSERT INTO 주문상품 (주문번호, 상품번호, 수량) VALUES (500, 7, 1), (500, 9, 2), (500, 7, 1);');
+  eq(rows('SELECT 주문상품번호, 상품번호 FROM 주문상품 ORDER BY 1'), [[1, 7], [2, 9], [3, 7]]);
+  // 본질 속성에 UNIQUE를 걸거나 본질식별자를 기본키로 쓰면 막힘
+  assert(fails('CREATE TABLE u1 (번호 INTEGER PRIMARY KEY, 주문번호 INTEGER, 상품번호 INTEGER, UNIQUE (주문번호, 상품번호));'
+    + 'INSERT INTO u1 (주문번호, 상품번호) VALUES (500, 7), (500, 7);'), 'UNIQUE로 중복 차단');
+  assert(fails('CREATE TABLE u2 (주문번호 INTEGER, 상품번호 INTEGER, PRIMARY KEY (주문번호, 상품번호));'
+    + 'INSERT INTO u2 VALUES (500, 7), (500, 7);'), '본질식별자 기본키로 중복 차단');
+  // 자동 번호
+  db.exec("CREATE TABLE 주문 (주문번호 INTEGER PRIMARY KEY, 고객명 TEXT NOT NULL); INSERT INTO 주문 (고객명) VALUES ('가나상회'), ('다라마트'), ('바사식품');");
+  eq(rows('SELECT 주문번호 FROM 주문 ORDER BY 1').flat(), [1, 2, 3]);
+  // 오라클과 다르다고 적은 SQLite 동작
+  assert(fails('CREATE SEQUENCE 주문번호_seq'), 'CREATE SEQUENCE 없음');
+  assert(fails('CREATE TABLE t (id NUMBER GENERATED ALWAYS AS IDENTITY, v TEXT)'), 'IDENTITY 없음');
+  db.exec('CREATE TABLE i1 (id INTEGER PRIMARY KEY, a INTEGER); CREATE TABLE i2 (id INTEGER PRIMARY KEY, a INTEGER, b INTEGER, UNIQUE (a, b));');
+  eq(rows("SELECT tbl_name, COUNT(*) FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('i1', 'i2') GROUP BY tbl_name").length, 1,
+    'INTEGER PRIMARY KEY는 별도 인덱스 없음, UNIQUE는 인덱스 생성');
   db.close();
 });
 
