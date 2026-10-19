@@ -3856,7 +3856,212 @@
             }
           ]
         },
-        { "group": "관리 구문", "name": "DCL", "cards": [] }
+        {
+          "group": "관리 구문",
+          "name": "DCL",
+          "cards": [
+            {
+              "id": "dcl-intro",
+              "title": "DCL과 사용자: 누가 무엇을 할 수 있나",
+              "summary": "DCL(GRANT, REVOKE)은 사용자에게 권한을 주고 빼앗는 SQL이다. 오라클에서 새로 만든 사용자는 권한을 받기 전까지 접속조차 할 수 없다.",
+              "desc": "관계형 데이터베이스 개요 단원에서 SQL 문장을 DML, DDL, DCL, TCL로 나누었다. 그중 DCL(Data Control Language)은 '누가 무엇을 할 수 있는지'를 정한다.\n· GRANT: 권한을 준다.\n· REVOKE: 준 권한을 빼앗는다.\n오라클은 여러 사용자가 한 데이터베이스를 함께 쓰는 DBMS다. 관리자(DBA)가 CREATE USER로 사용자를 만들어도, 그 사용자는 아직 아무것도 할 수 없다. 접속하려면 CREATE SESSION 권한, 테이블을 만들려면 CREATE TABLE 권한을 따로 받아야 한다.\n사용자가 만든 테이블 같은 객체는 그 사용자의 것(소유)이고, 그 묶음을 스키마라고 부른다. 다른 사용자의 테이블은 소유자 이름을 붙여 hr.사원처럼 부르며, 그 테이블에 대한 권한을 받아야만 쓸 수 있다.\n권한은 SQL로 실행해 볼 수 없어서(아래 '오라클과 SQLite가 달라요'), 이 단원은 표와 그림으로 따라가 본다.",
+              "analogy": "회사 출입증과 같다. 입사(CREATE USER)했다고 바로 아무 곳에나 들어갈 수 없다. 건물 출입(CREATE SESSION), 회의실 예약(CREATE TABLE), 다른 팀 자료실 열람(다른 사용자 테이블의 SELECT)처럼 필요한 권한을 하나씩 받아야 한다.",
+              "figures": [
+                {
+                  "title": "새 사용자 kim이 일할 수 있게 되기까지 (오라클)",
+                  "columns": ["단계", "DBA나 소유자가 실행하는 SQL", "kim이 할 수 있게 되는 일"],
+                  "rows": [
+                    ["1", "CREATE USER kim IDENTIFIED BY 비밀번호;", "아직 아무것도 못 한다(접속도 안 됨)"],
+                    ["2", "GRANT CREATE SESSION TO kim;", "데이터베이스에 접속"],
+                    ["3", "GRANT CREATE TABLE TO kim;", "자기 스키마에 테이블 만들기"],
+                    ["4", "(hr이 실행) GRANT SELECT ON 사원 TO kim;", "hr의 사원 테이블 조회: SELECT * FROM hr.사원"]
+                  ],
+                  "note": "1단계의 CREATE USER는 사용자를 만드는 문장이고, 권한을 주고 빼앗는 2~4단계가 DCL이다."
+                }
+              ],
+              "pitfalls": [
+                "사용자를 만들었다고 접속할 수 있는 것이 아니다. CREATE SESSION 권한이 없으면 로그인 단계에서 거부된다.",
+                "자기가 만든 테이블에는 따로 권한을 받지 않아도 모든 작업을 할 수 있다. 권한이 필요한 것은 '남의 것'을 쓸 때다.",
+                "다른 사용자의 테이블을 이름만으로(사원) 부르면 자기 스키마에서 찾으므로 없다고 나온다. 소유자 이름을 붙여 hr.사원으로 부른다."
+              ],
+              "oracle": [
+                "사용자와 권한: SQLite에는 사용자, 로그인, 권한이라는 개념이 없다. 데이터베이스 파일을 열 수 있으면 모든 작업을 할 수 있고, 접근 제어는 운영체제의 파일 권한에 맡긴다. 그래서 CREATE USER, GRANT, REVOKE는 연습창에서 문법 오류다."
+              ],
+              "exam": "DCL에 속하는 명령어를 고르는 문제, 새 사용자가 접속하거나 테이블을 만들려면 어떤 권한이 필요한지 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "DCL에 속하는 명령어로만 묶인 것은?",
+                  "choices": ["GRANT, REVOKE", "COMMIT, ROLLBACK", "CREATE, DROP", "INSERT, DELETE"],
+                  "answer": 1,
+                  "explain": "권한을 주고 빼앗는 GRANT, REVOKE가 DCL이다. 나머지는 차례로 TCL, DDL, DML이다."
+                },
+                {
+                  "q": "오라클에서 CREATE USER kim IDENTIFIED BY pw1234; 만 실행한 상태의 kim에 대한 설명으로 옳은 것은?",
+                  "choices": ["바로 접속해서 테이블을 만들 수 있다", "접속은 되지만 조회만 할 수 있다", "CREATE SESSION 권한을 받기 전에는 접속할 수 없다", "모든 사용자의 테이블을 조회할 수 있다"],
+                  "answer": 3,
+                  "explain": "새 사용자는 아무 권한도 없다. 접속하려면 CREATE SESSION, 테이블을 만들려면 CREATE TABLE 권한을 따로 받아야 한다."
+                }
+              ]
+            },
+            {
+              "id": "dcl-system-object",
+              "title": "시스템 권한과 객체 권한",
+              "summary": "시스템 권한은 '어떤 종류의 작업'(테이블 만들기 등)을 할 수 있는지, 객체 권한은 '특정 테이블 하나'에 무엇을 할 수 있는지를 정한다.",
+              "desc": "권한은 두 종류다.\n시스템 권한: 데이터베이스 전체에서 어떤 종류의 작업을 할 수 있는지 정한다. CREATE SESSION(접속), CREATE TABLE(테이블 만들기), CREATE VIEW, CREATE USER 같은 것이다. 보통 DBA가 준다.\nGRANT CREATE TABLE TO kim;  ← ON이 없다\n객체 권한: 특정 객체(테이블, 뷰 등) 하나에 대해 무엇을 할 수 있는지 정한다. SELECT, INSERT, UPDATE, DELETE, ALTER, REFERENCES 등이 있다. 그 객체의 소유자가 준다.\nGRANT SELECT, UPDATE ON 사원 TO kim;  ← ON 객체가 꼭 필요하다\nUPDATE 권한은 컬럼을 골라서 줄 수도 있다. GRANT UPDATE (급여) ON 사원 TO kim; 이면 kim은 급여 컬럼만 고칠 수 있다.\n권한을 여러 개 줄 때는 쉼표로 나열하고, 받는 사람도 쉼표로 여럿 쓸 수 있다.",
+              "analogy": "시스템 권한은 '운전면허'처럼 어떤 종류의 일을 할 자격이고, 객체 권한은 '이 차의 열쇠'처럼 특정 물건 하나를 쓸 수 있는 허락이다. 면허가 있어도 남의 차 열쇠가 없으면 그 차는 못 탄다.",
+              "figures": [
+                {
+                  "title": "두 가지 권한 비교 (오라클)",
+                  "columns": ["구분", "예", "GRANT 문 모양", "주로 누가 주나"],
+                  "rows": [
+                    ["시스템 권한", "CREATE SESSION, CREATE TABLE, CREATE VIEW", "GRANT CREATE TABLE TO kim;", "DBA"],
+                    ["객체 권한", "SELECT, INSERT, UPDATE, DELETE, ALTER, REFERENCES", "GRANT SELECT ON 사원 TO kim;", "그 객체의 소유자"]
+                  ]
+                }
+              ],
+              "pitfalls": [
+                "객체 권한에는 ON 객체이름이 꼭 들어간다. 시스템 권한에는 ON이 없다. 문장 모양만 보고도 종류를 구별할 수 있다.",
+                "SELECT 권한만 받으면 조회만 된다. 같은 테이블에 INSERT, UPDATE, DELETE를 하려면 그 권한을 각각 받아야 한다.",
+                "CREATE TABLE은 '자기 스키마에 테이블을 만드는' 시스템 권한이다. 남의 테이블에 행을 넣는 권한(INSERT ON 남의테이블)과는 다르다."
+              ],
+              "oracle": [
+                "실행 불가: SQLite에는 권한이 없어 GRANT ... ON ... 문장은 연습창에서 문법 오류다. 표의 SQL은 오라클에서만 동작한다."
+              ],
+              "exam": "주어진 GRANT 문이 시스템 권한인지 객체 권한인지 구별하는 문제, 특정 권한을 받은 사용자가 할 수 있는 일을 고르는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "다음 중 객체 권한을 주는 SQL은?",
+                  "choices": ["GRANT CREATE TABLE TO kim;", "GRANT CREATE SESSION TO kim;", "GRANT CREATE VIEW TO kim;", "GRANT SELECT ON 사원 TO kim;"],
+                  "answer": 4,
+                  "explain": "특정 객체(사원 테이블)에 대한 권한을 ON으로 지정한 것이 객체 권한이다. 나머지는 ON이 없는 시스템 권한이다."
+                },
+                {
+                  "q": "hr 사용자가 GRANT SELECT ON 사원 TO kim; 을 실행했다. kim이 할 수 있는 것은?",
+                  "choices": ["hr.사원 테이블의 행을 조회한다", "hr.사원 테이블의 행을 삭제한다", "hr.사원 테이블에 컬럼을 추가한다", "자기 스키마에 새 테이블을 만든다"],
+                  "answer": 1,
+                  "explain": "받은 권한은 사원 테이블의 SELECT 하나뿐이다. 삭제(DELETE), 구조 변경(ALTER), 테이블 생성(CREATE TABLE)은 각각 다른 권한이 필요하다."
+                }
+              ]
+            },
+            {
+              "id": "dcl-revoke",
+              "title": "REVOKE로 권한 회수하기",
+              "summary": "REVOKE 권한 [ON 객체] FROM 사용자; 로 준 권한을 빼앗는다. GRANT는 TO, REVOKE는 FROM을 쓴다.",
+              "desc": "권한이 더 필요 없어지면 REVOKE로 회수한다. 모양은 GRANT와 거의 같고, TO 대신 FROM을 쓴다.\n· 시스템 권한: REVOKE CREATE TABLE FROM kim;\n· 객체 권한: REVOKE UPDATE ON 사원 FROM kim;\n회수한 권한만 사라지고, 같이 받았던 다른 권한은 남는다. SELECT와 UPDATE를 받은 사람에게서 UPDATE만 회수하면 SELECT는 계속 할 수 있다.\nPUBLIC은 '모든 사용자'를 뜻하는 특별한 이름이다. GRANT SELECT ON 부서 TO PUBLIC; 은 지금 있는 사용자와 앞으로 생길 사용자 모두에게 부서 조회를 허락한다.\n권한을 회수해도 그 권한으로 이미 해 둔 일은 되돌아가지 않는다. CREATE TABLE 권한을 회수해도 kim이 이미 만든 테이블은 그대로 남고, 새로 만들지 못할 뿐이다.",
+              "analogy": "빌려준 열쇠를 돌려받는 것과 같다. 창고 열쇠(UPDATE)만 돌려받으면 사무실 열쇠(SELECT)는 여전히 그 사람에게 있다. 열쇠를 돌려받아도 그 사이에 창고에 넣어 둔 물건이 사라지지는 않는다.",
+              "figures": [
+                {
+                  "title": "GRANT와 REVOKE 짝 맞추기 (오라클)",
+                  "columns": ["대상", "주기(GRANT)", "빼앗기(REVOKE)"],
+                  "rows": [
+                    ["시스템 권한", "GRANT CREATE TABLE TO kim;", "REVOKE CREATE TABLE FROM kim;"],
+                    ["객체 권한", "GRANT SELECT, UPDATE ON 사원 TO kim;", "REVOKE UPDATE ON 사원 FROM kim;"],
+                    ["모든 사용자", "GRANT SELECT ON 부서 TO PUBLIC;", "REVOKE SELECT ON 부서 FROM PUBLIC;"]
+                  ]
+                }
+              ],
+              "pitfalls": [
+                "GRANT는 TO, REVOKE는 FROM이다. REVOKE ... TO kim 은 문법 오류다.",
+                "REVOKE UPDATE ON 사원 FROM kim 은 UPDATE만 빼앗는다. 함께 받았던 SELECT는 남는다.",
+                "CREATE TABLE 권한을 회수해도 kim이 이미 만든 테이블은 지워지지 않는다.",
+                "PUBLIC에게 준 권한은 모든 사용자가 쓸 수 있다. kim 개인에게서 REVOKE해도, 같은 권한을 PUBLIC으로 받고 있다면 kim은 계속 쓸 수 있다."
+              ],
+              "oracle": [
+                "실행 불가: SQLite에는 REVOKE 문이 없다. 표의 SQL은 오라클에서만 동작한다."
+              ],
+              "exam": "REVOKE 문법(FROM)을 바르게 쓴 것을 고르는 문제, 일부 권한만 회수했을 때 남는 권한을 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "kim에게서 사원 테이블의 DELETE 권한을 빼앗는 SQL로 알맞은 것은?",
+                  "choices": ["REVOKE DELETE ON 사원 TO kim;", "REVOKE DELETE ON 사원 FROM kim;", "GRANT NO DELETE ON 사원 TO kim;", "DROP DELETE ON 사원 FROM kim;"],
+                  "answer": 2,
+                  "explain": "REVOKE 권한 ON 객체 FROM 사용자; 형태다. REVOKE에 TO를 쓰면 문법 오류이고, 나머지 두 보기는 없는 문법이다."
+                },
+                {
+                  "q": "kim이 사원 테이블에 SELECT와 UPDATE 권한을 받은 뒤, REVOKE UPDATE ON 사원 FROM kim; 이 실행됐다. kim이 사원 테이블에 할 수 있는 것은?",
+                  "choices": ["SELECT만 할 수 있다", "UPDATE만 할 수 있다", "SELECT와 UPDATE 둘 다 할 수 있다", "아무것도 할 수 없다"],
+                  "answer": 1,
+                  "explain": "회수한 UPDATE만 사라지고 SELECT는 남는다. 권한은 하나씩 따로 주고 따로 빼앗는다."
+                }
+              ]
+            },
+            {
+              "id": "dcl-grant-option",
+              "title": "WITH GRANT OPTION과 WITH ADMIN OPTION",
+              "summary": "받은 권한을 남에게 다시 줄 수 있게 하는 옵션이다. 객체 권한(WITH GRANT OPTION)은 회수할 때 연쇄로 사라지고, 시스템 권한(WITH ADMIN OPTION)은 연쇄로 사라지지 않는다.",
+              "desc": "보통은 권한을 받은 사람이 그 권한을 다른 사람에게 다시 줄 수 없다. 다시 줄 수 있게 하려면 GRANT 끝에 옵션을 붙인다.\n· 객체 권한 + WITH GRANT OPTION\n  GRANT SELECT ON 사원 TO kim WITH GRANT OPTION;\n  kim은 lee에게 SELECT ON hr.사원을 다시 줄 수 있다. 나중에 hr이 kim의 권한을 회수하면, kim이 lee에게 준 권한도 함께 회수된다(연쇄 회수).\n· 시스템 권한(또는 롤) + WITH ADMIN OPTION\n  GRANT CREATE TABLE TO kim WITH ADMIN OPTION;\n  kim은 lee에게 CREATE TABLE을 줄 수 있다. 나중에 kim의 권한을 회수해도 lee가 받은 권한은 그대로 남는다(연쇄 회수 없음).\n외우는 요령: 객체 권한(GRANT OPTION)은 '줄줄이 같이 사라지고', 시스템 권한(ADMIN OPTION)은 '받은 사람에게 그대로 남는다'.",
+              "analogy": "객체 권한은 '빌린 책을 또 빌려준 것'과 같다. 원래 주인이 책을 돌려받으면 중간에 빌려 간 사람들 손에서도 책이 사라진다. 시스템 권한은 '자격증 강사가 가르쳐 준 기술'과 같다. 강사의 자격이 취소되어도 이미 배운 사람의 기술은 남는다.",
+              "diagram": "[객체 권한 · WITH GRANT OPTION]\nhr ──SELECT──> kim ──SELECT──> lee\nhr: REVOKE SELECT ON 사원 FROM kim;\n→ kim도 잃고, kim이 lee에게 준 권한도 함께 사라진다 (연쇄 회수)\n\n[시스템 권한 · WITH ADMIN OPTION]\nDBA ──CREATE TABLE──> kim ──CREATE TABLE──> lee\nDBA: REVOKE CREATE TABLE FROM kim;\n→ kim만 잃고, lee의 권한은 그대로 남는다",
+              "pitfalls": [
+                "WITH GRANT OPTION은 객체 권한에, WITH ADMIN OPTION은 시스템 권한과 롤에 쓴다. 서로 바꿔 쓸 수 없다.",
+                "연쇄 회수가 일어나는 쪽은 WITH GRANT OPTION(객체 권한)이다. 시험에서는 이 둘을 뒤집어서 자주 낸다.",
+                "객체 권한은 그것을 준 사람만 회수할 수 있다. hr은 kim이 lee에게 준 권한을 lee에게서 직접 회수할 수 없고, kim에게서 회수하면 연쇄로 함께 사라진다."
+              ],
+              "oracle": [
+                "실행 불가: SQLite에는 권한과 옵션이 없어 그림의 SQL을 연습창에서 실행할 수 없다. 오라클 기준으로 기억한다."
+              ],
+              "exam": "A → B → C 순서로 권한이 넘어간 상황에서 A가 B의 권한을 회수했을 때 C의 권한이 남는지 묻는 문제가 단골이다. 객체 권한인지 시스템 권한인지를 먼저 확인한다.",
+              "quiz": [
+                {
+                  "q": "hr이 GRANT SELECT ON 사원 TO kim WITH GRANT OPTION; 을 실행했고, kim이 lee에게 같은 권한을 주었다. 이후 hr이 REVOKE SELECT ON 사원 FROM kim; 을 실행하면?",
+                  "choices": ["kim만 권한을 잃고 lee는 그대로다", "kim과 lee 모두 권한을 잃는다", "lee만 권한을 잃는다", "lee가 권한을 갖고 있어서 회수가 거부된다"],
+                  "answer": 2,
+                  "explain": "객체 권한을 WITH GRANT OPTION으로 받아 다시 준 경우, 중간 사람의 권한을 회수하면 그 사람이 준 권한도 연쇄로 회수된다."
+                },
+                {
+                  "q": "DBA가 GRANT CREATE TABLE TO kim WITH ADMIN OPTION; 을 실행했고, kim이 lee에게 CREATE TABLE을 주었다. DBA가 kim에게서 CREATE TABLE을 회수하면?",
+                  "choices": ["kim과 lee 모두 권한을 잃는다", "lee만 권한을 잃는다", "kim이 만든 테이블이 모두 지워진다", "kim만 권한을 잃고 lee의 권한은 남는다"],
+                  "answer": 4,
+                  "explain": "시스템 권한을 WITH ADMIN OPTION으로 받아 다시 준 경우에는 연쇄 회수가 일어나지 않는다. 이미 만든 테이블도 지워지지 않는다."
+                }
+              ]
+            },
+            {
+              "id": "dcl-role",
+              "title": "롤(ROLE)로 권한 묶어 주기",
+              "summary": "롤은 여러 권한을 하나로 묶은 이름이다. 롤을 사용자에게 주면 묶인 권한을 한 번에 받고, 롤의 권한을 바꾸면 롤을 받은 모두에게 바로 반영된다.",
+              "desc": "사용자가 많으면 권한을 한 사람씩 하나하나 주고 빼기가 번거롭고 실수도 생긴다. 그래서 권한을 묶음으로 관리하는 롤(ROLE)을 쓴다.\n① CREATE ROLE 조회담당;  ← 빈 묶음을 만든다\n② 묶음에 권한을 넣는다: GRANT CREATE SESSION TO 조회담당; GRANT SELECT ON 사원 TO 조회담당;\n③ 사용자에게 롤을 준다: GRANT 조회담당 TO kim, lee;\n이제 kim과 lee는 접속과 사원 조회를 할 수 있다. 나중에 조회담당에 권한을 하나 더 넣으면 kim과 lee에게도 바로 적용되고, 롤에서 권한을 빼면 모두에게서 한꺼번에 빠진다. 롤 자체를 빼앗을 때는 REVOKE 조회담당 FROM kim; 이다.\n롤에는 시스템 권한과 객체 권한을 모두 담을 수 있고, 롤 안에 다른 롤을 넣을 수도 있다.\n오라클에는 미리 만들어진 롤이 있다. CONNECT는 접속(CREATE SESSION), RESOURCE는 테이블·시퀀스 등 객체를 만드는 권한 묶음, DBA는 거의 모든 시스템 권한을 담고 있다.",
+              "analogy": "회사의 '직무별 출입 카드'와 같다. 사람마다 문을 하나하나 등록하는 대신 '회계팀 카드'에 필요한 문을 묶어 두고, 회계팀에 온 사람에게 그 카드를 준다. 회계팀 카드에 문 하나를 추가하면 회계팀 모두가 그 문을 열 수 있게 된다.",
+              "figures": [
+                {
+                  "title": "롤을 만들어 두 사람에게 주기 (오라클)",
+                  "columns": ["단계", "SQL", "효과"],
+                  "rows": [
+                    ["1", "CREATE ROLE 조회담당;", "빈 권한 묶음을 만든다"],
+                    ["2", "GRANT CREATE SESSION TO 조회담당;", "묶음에 접속 권한을 넣는다"],
+                    ["3", "GRANT SELECT ON 사원 TO 조회담당;", "묶음에 사원 조회 권한을 넣는다"],
+                    ["4", "GRANT 조회담당 TO kim, lee;", "kim과 lee가 묶음의 권한을 모두 얻는다"],
+                    ["5", "GRANT SELECT ON 부서 TO 조회담당;", "kim과 lee도 바로 부서를 조회할 수 있게 된다"]
+                  ]
+                }
+              ],
+              "pitfalls": [
+                "롤을 사용자에게 줄 때는 ON 없이 GRANT 롤이름 TO 사용자; 로 쓴다.",
+                "롤에서 권한 하나를 빼면, 그 롤을 받은 모든 사용자에게서 한꺼번에 빠진다.",
+                "받은 롤을 다른 사람에게 다시 주려면 그 롤을 WITH ADMIN OPTION으로 받아야 한다(앞 카드).",
+                "RESOURCE 롤에는 접속 권한(CREATE SESSION)이 들어 있지 않다. 그래서 새 사용자에게 CONNECT와 RESOURCE를 함께 주는 경우가 많다."
+              ],
+              "oracle": [
+                "실행 불가: SQLite에는 롤이 없어 CREATE ROLE도 연습창에서 문법 오류다. 표의 SQL은 오라클에서만 동작한다."
+              ],
+              "exam": "롤을 쓰는 이유(권한 관리 단순화), 롤에 권한을 추가·삭제했을 때 사용자에게 미치는 영향, CONNECT·RESOURCE·DBA 같은 기본 롤의 역할을 묻는다.",
+              "quiz": [
+                {
+                  "q": "롤(ROLE)에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["여러 권한을 하나의 이름으로 묶어 관리한다", "롤에 권한을 추가하면 그 롤을 받은 사용자에게도 바로 적용된다", "롤에는 시스템 권한만 담을 수 있고 객체 권한은 담을 수 없다", "롤을 사용자에게 줄 때도 GRANT를 쓴다"],
+                  "answer": 3,
+                  "explain": "롤에는 시스템 권한과 객체 권한을 모두 담을 수 있다. 예를 들어 CREATE SESSION과 SELECT ON 사원을 한 롤에 함께 넣을 수 있다."
+                },
+                {
+                  "q": "새 사용자 kim이 접속해서 자기 테이블을 만들 수 있도록 오라클의 기본 롤을 주려 한다. 가장 알맞은 것은?",
+                  "choices": ["GRANT RESOURCE TO kim;", "GRANT CONNECT, RESOURCE TO kim;", "GRANT SELECT ON 사원 TO kim;", "GRANT PUBLIC TO kim;"],
+                  "answer": 2,
+                  "explain": "RESOURCE에는 테이블을 만드는 권한은 있지만 접속 권한(CREATE SESSION)이 없다. 접속 권한이 있는 CONNECT를 함께 줘야 한다."
+                }
+              ]
+            }
+          ]
+        }
       ]
     }
   ]

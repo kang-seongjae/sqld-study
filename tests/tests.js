@@ -95,6 +95,7 @@ const DONE_UNITS = [
   'DML',
   'TCL',
   'DDL',
+  'DCL',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -812,6 +813,15 @@ test('DDL 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
   // DROP/TRUNCATE/DELETE 카드 예시의 건수
   db.exec('CREATE TABLE 임시사원 AS SELECT * FROM 사원; DELETE FROM 임시사원 WHERE 부서번호 = 20');
   eq(one('SELECT COUNT(*) FROM 임시사원'), [7]);
+  db.close();
+});
+
+test('DCL 단원: SQLite에는 사용자·권한 문장이 없음', async () => {
+  const { db, fails } = await seededDb();
+  for (const bad of ['CREATE USER kim IDENTIFIED BY pw1234', 'GRANT CREATE SESSION TO kim', 'GRANT SELECT ON 사원 TO kim',
+    'REVOKE SELECT ON 사원 FROM kim', 'CREATE ROLE 조회담당', 'GRANT SELECT ON 사원 TO kim WITH GRANT OPTION']) {
+    assert(fails(bad), `SQLite에서 안 돼야 함: ${bad}`);
+  }
   db.close();
 });
 
