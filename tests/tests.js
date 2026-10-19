@@ -90,6 +90,7 @@ const DONE_UNITS = [
   '윈도우 함수',
   'Top N 쿼리',
   '계층형 질의와 셀프 조인',
+  'PIVOT 절과 UNPIVOT 절',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -596,6 +597,29 @@ test('계층형 질의와 셀프 조인 단원: 카드·문제에 적은 값과 
   assert(fails('SELECT 이름, LEVEL FROM 사원 START WITH 관리자번호 IS NULL CONNECT BY PRIOR 사원번호 = 관리자번호'), 'CONNECT BY 없음');
   assert(fails("SELECT SYS_CONNECT_BY_PATH(이름, '/') FROM 사원"), 'SYS_CONNECT_BY_PATH 없음');
   eq(one('WITH 조직(사원번호) AS (SELECT 사원번호 FROM 사원 WHERE 관리자번호 IS NULL UNION ALL SELECT e.사원번호 FROM 사원 e JOIN 조직 ON e.관리자번호 = 조직.사원번호) SELECT COUNT(*) FROM 조직'), [11], 'RECURSIVE 생략');
+  db.close();
+});
+
+test('PIVOT 절과 UNPIVOT 절 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  eq(rows('SELECT 부서번호, 직급, COUNT(*) FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호, 직급').length, 10, '세로형 10행');
+  const cnt = () => ['부장', '과장', '대리', '사원'].map((j) => `COUNT(CASE WHEN 직급 = '${j}' THEN 1 END)`).join(', ');
+  eq(rows(`SELECT 부서번호, ${cnt()} FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호 ORDER BY 부서번호`),
+    [[10, 0, 0, 0, 1], [20, 1, 1, 1, 1], [30, 1, 1, 1, 1]], 'COUNT로 펼친 표(빈칸 0)');
+  const sum = ['부장', '과장', '대리', '사원'].map((j) => `SUM(CASE WHEN 직급 = '${j}' THEN 급여 END)`).join(', ');
+  eq(rows(`SELECT 부서번호, ${sum} FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호 ORDER BY 부서번호`),
+    [[10, null, null, null, 3100], [20, 6500, 5000, 4000, 3300], [30, 6200, 4800, 3900, 3200]], 'SUM으로 펼친 표(빈칸 NULL)');
+  eq(rows("SELECT 부서번호, 이름, COUNT(CASE WHEN 직급 = '부장' THEN 1 END) FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호, 이름").length, 10, '이름까지 행 기준');
+  eq(rows("SELECT 부서번호, COUNT(CASE WHEN 직급 = '부장' THEN 1 END), SUM(CASE WHEN 직급 = '부장' THEN 급여 END), SUM(CASE WHEN 직급 = '부장' THEN 급여 ELSE 0 END) FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 부서번호 ORDER BY 부서번호"),
+    [[10, 0, null, 0], [20, 1, 6500, 6500], [30, 1, 6200, 6200]]);
+  eq(one("SELECT COUNT(CASE WHEN 직급 = '부장' THEN 1 ELSE 0 END), AVG(CASE WHEN 직급 = '부장' THEN 급여 ELSE 0 END) FROM 사원 WHERE 부서번호 = 20"), [4, 1625]);
+  eq(rows("SELECT 이름, '급여', 급여 FROM 사원 WHERE 부서번호 = 30 UNION ALL SELECT 이름, '커미션', 커미션 FROM 사원 WHERE 부서번호 = 30").length, 8, 'UNPIVOT 대신 UNION ALL');
+  eq(rows("SELECT 이름, '급여', 급여 FROM 사원 WHERE 부서번호 = 10 UNION ALL SELECT 이름, '커미션', 커미션 FROM 사원 WHERE 부서번호 = 10").length, 4, 'NULL 남음');
+  eq(rows("SELECT 이름, '급여', 급여 FROM 사원 WHERE 부서번호 = 10 UNION ALL SELECT 이름, '커미션', 커미션 FROM 사원 WHERE 부서번호 = 10 AND 커미션 IS NOT NULL").length, 2, 'NULL 뺌');
+  // 오라클과 다르다고 적은 SQLite 동작
+  assert(fails("SELECT * FROM (SELECT 부서번호, 직급 FROM 사원) PIVOT (COUNT(*) FOR 직급 IN ('부장' AS 부장))"), 'PIVOT 없음');
+  assert(fails('SELECT * FROM (SELECT 이름, 급여, 커미션 FROM 사원) UNPIVOT (금액 FOR 항목 IN (급여, 커미션))'), 'UNPIVOT 없음');
+  assert(fails("SELECT SUM(DECODE(직급, '부장', 급여)) FROM 사원"), 'DECODE 없음');
   db.close();
 });
 

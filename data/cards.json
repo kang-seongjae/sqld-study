@@ -2765,7 +2765,217 @@
             }
           ]
         },
-        { "group": "SQL 활용", "name": "PIVOT 절과 UNPIVOT 절", "cards": [] },
+        {
+          "group": "SQL 활용",
+          "name": "PIVOT 절과 UNPIVOT 절",
+          "cards": [
+            {
+              "id": "pivot-concept",
+              "title": "PIVOT: 행을 열로 펼치기",
+              "summary": "PIVOT은 세로로 길게 늘어선 행의 값을 가로 열 제목으로 펼쳐서, 한눈에 비교하기 쉬운 표로 바꾼다.",
+              "desc": "GROUP BY 단원에서처럼 부서번호, 직급으로 묶으면 '부서 - 직급 - 인원'이 한 줄씩 세로로 길게 나온다(예시의 첫 결과, 10행). 내용은 맞지만 '20번 부서와 30번 부서의 직급 구성이 같은가?'를 비교하려면 눈이 위아래로 오가야 한다.\nPIVOT은 이 결과를 엑셀의 피벗 표처럼 돌려 놓는다. 직급 값('부장', '과장', ...)이 열 제목이 되고, 부서마다 한 행씩만 남는다(예시의 두 번째 결과, 3행).\n펼치려면 세 가지를 정해야 한다.\n① 행으로 남길 기준: 부서번호\n② 열로 펼칠 값: 직급\n③ 칸에 채울 집계: COUNT(*) 같은 집계 함수\n오라클은 PIVOT 절로 이것을 한 번에 쓴다(다음 카드). SQLite에는 PIVOT 절이 없어서, 예시의 두 번째 SQL처럼 CASE와 집계 함수로 같은 표를 만든다(세 번째 카드).",
+              "analogy": "'날짜 - 학생 - 출석 여부'를 한 줄씩 적은 장부를, 학생은 세로줄에 날짜는 가로칸에 놓은 달력형 출석표로 옮겨 적는 것과 같다. 내용은 같지만 한눈에 비교하기가 훨씬 쉬워진다.",
+              "sql": "SELECT 부서번호, 직급, COUNT(*) AS 인원\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호, 직급\nORDER BY 부서번호, 직급;\n\nSELECT 부서번호,\n       COUNT(CASE WHEN 직급 = '부장' THEN 1 END) AS 부장,\n       COUNT(CASE WHEN 직급 = '과장' THEN 1 END) AS 과장,\n       COUNT(CASE WHEN 직급 = '대리' THEN 1 END) AS 대리,\n       COUNT(CASE WHEN 직급 = '사원' THEN 1 END) AS 사원\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호\nORDER BY 부서번호;",
+              "pitfalls": [
+                "열로 펼칠 값은 SQL에 미리 적어 두어야 한다. 예시는 '부장', '과장', '대리', '사원'만 적었기 때문에 10번 부서의 '대표'는 표에 나오지 않는다. 데이터에 새 값이 생겨도 열이 저절로 늘어나지 않는다.",
+                "PIVOT은 조회 결과의 모양만 바꾼다. 테이블에 저장된 데이터는 그대로다.",
+                "칸에 들어가는 값은 반드시 집계 결과다. 한 칸에 여러 행이 모일 수 있기 때문이다."
+              ],
+              "oracle": [
+                "PIVOT 절: 오라클은 11g부터 PIVOT 절을 지원한다. SQLite에는 PIVOT이 없어서 연습창에서 쓰면 문법 오류가 나고, 예시처럼 CASE와 집계 함수로 대신 만든다."
+              ],
+              "exam": "세로형 결과와 PIVOT 결과 표를 함께 주고 빈칸의 값을 묻거나, PIVOT 결과의 행 수·열 수를 묻는다. 무엇이 행 기준이고 무엇이 열로 펼쳐지는지 구분하는 것이 핵심이다.",
+              "quiz": [
+                {
+                  "q": "부서번호·직급별 인원을 PIVOT해서 부서번호는 행에, 직급('부장', '과장', '대리') 세 값은 열로 펼쳤다. 부서가 10, 20, 30 세 개라면 결과 표의 크기는? (부서번호 열 포함)",
+                  "choices": ["3행 3열", "3행 4열", "9행 3열", "4행 3열"],
+                  "answer": 2,
+                  "explain": "행은 부서마다 하나라서 3행이고, 열은 부서번호 1개 + 펼친 직급 3개로 4열이다."
+                },
+                {
+                  "q": "PIVOT에 대한 설명으로 옳지 않은 것은?",
+                  "choices": ["행으로 있던 값을 열 제목으로 펼친다", "펼친 칸에는 집계 함수의 결과가 들어간다", "PIVOT을 실행하면 원래 테이블이 가로형 구조로 바뀌어 저장된다", "열로 펼칠 값은 SQL에 미리 적어 둔다"],
+                  "answer": 3,
+                  "explain": "PIVOT은 조회 결과의 모양만 바꾼다. 테이블에 저장된 데이터와 구조는 바뀌지 않는다."
+                }
+              ]
+            },
+            {
+              "id": "pivot-oracle",
+              "title": "오라클 PIVOT 문법과 숨은 GROUP BY",
+              "summary": "오라클 PIVOT은 'PIVOT (집계함수 FOR 펼칠열 IN (값 목록))'으로 쓰고, 여기에 쓰지 않은 나머지 열이 저절로 GROUP BY 기준이 된다.",
+              "desc": "앞 카드의 표를 오라클 PIVOT 절로 쓰면 이렇다.\nSELECT *\nFROM (SELECT 부서번호, 직급 FROM 사원 WHERE 부서번호 IS NOT NULL)\nPIVOT (COUNT(*) FOR 직급 IN ('부장' AS 부장, '과장' AS 과장, '대리' AS 대리, '사원' AS 사원))\nORDER BY 부서번호;\n· FROM 뒤 괄호 안의 SELECT(인라인 뷰, 서브쿼리 단원)로 PIVOT에 쓸 열만 먼저 골라 둔다.\n· COUNT(*): 칸에 채울 집계.\n· FOR 직급: 열로 펼칠 열.\n· IN (...): 펼칠 값과, 그 값이 될 열의 이름(AS).\nPIVOT 절에는 GROUP BY를 쓰지 않는다. 대신 인라인 뷰의 열 중에서 집계 함수와 FOR에 쓰지 않은 열(여기서는 부서번호)이 자동으로 행 기준(GROUP BY)이 된다. 그래서 인라인 뷰에 어떤 열을 넣느냐에 따라 결과 행 수가 달라진다.\n연습창(SQLite)에는 PIVOT이 없으므로 예시 SQL은 같은 결과를 내는 CASE 버전이다. 첫 번째 SQL이 올바른 경우, 두 번째 SQL은 인라인 뷰에 이름까지 넣어서 이름도 행 기준이 되어 버린 경우를 흉내 낸 것이다.",
+              "analogy": "엑셀 피벗 표에서 '행' 칸에 부서만 끌어다 놓으면 부서별 요약이 되지만, 실수로 이름까지 끌어다 놓으면 사람마다 한 줄씩 나오는 것과 같다. 오라클 PIVOT에서는 인라인 뷰에 넣은 열이 그 '행' 칸 역할을 한다.",
+              "figures": [
+                {
+                  "title": "오라클 PIVOT 결과 (위 SQL을 오라클에서 실행)",
+                  "columns": ["부서번호", "부장", "과장", "대리", "사원"],
+                  "rows": [
+                    [10, 0, 0, 0, 1],
+                    [20, 1, 1, 1, 1],
+                    [30, 1, 1, 1, 1]
+                  ],
+                  "note": "COUNT로 집계하면 해당하는 행이 없는 칸은 0이 된다. 다른 집계 함수의 빈칸은 네 번째 카드에서 다룬다."
+                }
+              ],
+              "sql": "SELECT 부서번호,\n       COUNT(CASE WHEN 직급 = '부장' THEN 1 END) AS 부장,\n       COUNT(CASE WHEN 직급 = '과장' THEN 1 END) AS 과장,\n       COUNT(CASE WHEN 직급 = '대리' THEN 1 END) AS 대리,\n       COUNT(CASE WHEN 직급 = '사원' THEN 1 END) AS 사원\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호\nORDER BY 부서번호;\n\nSELECT 부서번호, 이름,\n       COUNT(CASE WHEN 직급 = '부장' THEN 1 END) AS 부장,\n       COUNT(CASE WHEN 직급 = '과장' THEN 1 END) AS 과장\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호, 이름\nORDER BY 부서번호, 이름;",
+              "pitfalls": [
+                "인라인 뷰에 필요 없는 열(이름, 사원번호 등)을 넣으면 그 열까지 행 기준이 되어 사원마다 한 행씩 나오는 의미 없는 표가 된다. 예시의 두 번째 결과(10행)가 그 모습이다. 그래서 PIVOT 앞에는 필요한 열만 고른 인라인 뷰를 둔다.",
+                "IN 목록의 값은 상수로 적는다. 일반 PIVOT에서는 IN 안에 서브쿼리를 쓸 수 없다.",
+                "IN 목록에 AS 별칭을 붙이지 않으면 열 이름이 따옴표까지 포함한 값 모양('부장')이 되어 다른 곳에서 부르기 불편하다."
+              ],
+              "oracle": [
+                "PIVOT 절은 오라클 전용 문법이라 SQLite에서는 문법 오류다. 같은 결과는 예시처럼 GROUP BY와 COUNT(CASE ...)로 만든다."
+              ],
+              "exam": "PIVOT 문장을 주고 결과 표의 특정 칸 값이나 결과 행 수를 묻는다. 특히 인라인 뷰에 들어간 열 때문에 행 기준이 어떻게 정해지는지(숨은 GROUP BY)를 묻는 문제가 자주 나온다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 SELECT * FROM (SELECT 부서번호, 직급, 급여 FROM 사원) PIVOT (SUM(급여) FOR 직급 IN ('부장' AS 부장, '과장' AS 과장)); 의 결과는 무엇을 기준으로 한 행씩 나오는가?",
+                  "choices": ["직급", "급여", "부서번호", "부서번호와 급여"],
+                  "answer": 3,
+                  "explain": "집계 함수에 쓴 급여와 FOR에 쓴 직급을 뺀 나머지 열, 즉 부서번호가 자동으로 행 기준이 된다."
+                },
+                {
+                  "q": "위 SQL의 인라인 뷰를 SELECT 사원번호, 부서번호, 직급, 급여 FROM 사원 으로 바꾸면 결과는 어떻게 되는가? (사원번호는 사원마다 다르다)",
+                  "choices": ["결과가 바뀌지 않는다", "사원마다 한 행씩 나와 결과 행 수가 사원 수와 같아진다", "사원번호 때문에 문법 오류가 난다", "직급별로 한 행씩 나온다"],
+                  "answer": 2,
+                  "explain": "사원번호도 행 기준에 들어가 (사원번호, 부서번호) 조합마다 한 행이 된다. 사원번호가 모두 다르므로 사원 수만큼 행이 나온다."
+                }
+              ]
+            },
+            {
+              "id": "pivot-case",
+              "title": "CASE와 집계 함수로 PIVOT 만들기",
+              "summary": "PIVOT 절이 없어도 GROUP BY와 '집계함수(CASE WHEN 조건 THEN 값 END)'로 똑같은 가로형 표를 만들 수 있다.",
+              "desc": "PIVOT 절이 생기기 전부터 쓰던 방법이고, PIVOT이 없는 DBMS(SQLite 등)에서는 지금도 이렇게 쓴다. 함수 단원의 CASE와 GROUP BY 단원의 집계 함수를 합친 것이다.\nSUM(CASE WHEN 직급 = '부장' THEN 급여 END) AS 부장급여\n동작을 나눠 보면,\n① CASE가 행마다 '부장이면 급여, 아니면 NULL'을 만든다.\n② GROUP BY 부서번호로 부서마다 묶는다.\n③ SUM은 NULL을 빼고 더하므로, 그 부서 부장들의 급여 합만 남는다.\n펼칠 값마다 이런 열을 하나씩 쓰면 PIVOT과 같은 표가 된다. 오라클에서는 CASE 대신 DECODE(직급, '부장', 급여)로 더 짧게 쓰기도 한다.\n이 방법은 GROUP BY를 직접 쓰기 때문에, 무엇이 행 기준인지가 SQL에 바로 보인다는 장점이 있다.",
+              "analogy": "가계부를 정리할 때 항목마다 봉투를 하나씩 준비하고, 영수증을 한 장씩 보며 '식비면 식비 봉투, 아니면 넘기기'를 반복한 뒤 봉투별 합계를 내는 것과 같다. CASE가 영수증을 봉투에 나눠 담고, SUM이 봉투마다 합계를 낸다.",
+              "sql": "SELECT 부서번호,\n       SUM(CASE WHEN 직급 = '부장' THEN 급여 END) AS 부장급여,\n       SUM(CASE WHEN 직급 = '과장' THEN 급여 END) AS 과장급여,\n       SUM(CASE WHEN 직급 = '대리' THEN 급여 END) AS 대리급여,\n       SUM(CASE WHEN 직급 = '사원' THEN 급여 END) AS 사원급여\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호\nORDER BY 부서번호;",
+              "pitfalls": [
+                "CASE에 ELSE를 쓰지 않으면 조건에 맞지 않는 행은 NULL이 되고 SUM이 NULL을 건너뛴다. 그래서 해당자가 아무도 없는 칸은 0이 아니라 NULL이다(예시에서 10번 부서의 부장급여). 다음 카드에서 자세히 본다.",
+                "GROUP BY에 쓴 열과 집계 함수만 SELECT에 쓸 수 있다는 GROUP BY 단원의 규칙은 여기서도 똑같다.",
+                "펼칠 값이 늘어나면 CASE 열도 직접 하나씩 늘려야 한다."
+              ],
+              "oracle": [
+                "DECODE: 오라클은 SUM(DECODE(직급, '부장', 급여))처럼 DECODE로 줄여 쓸 수 있다. SQLite에는 DECODE가 없어서 CASE로 쓴다(함수 단원)."
+              ],
+              "exam": "PIVOT 문장과 같은 결과를 내는 CASE(또는 DECODE) 문장을 고르는 문제, CASE로 펼친 표의 특정 칸 값을 계산하는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "SELECT 부서번호, SUM(CASE WHEN 직급 = '과장' THEN 급여 END) AS 과장급여 FROM 사원 GROUP BY 부서번호 에서, 과장이 2명(급여 5000, 4800)인 부서의 과장급여 값은?",
+                  "choices": ["4800", "5000", "NULL", "9800"],
+                  "answer": 4,
+                  "explain": "CASE가 과장인 행에만 급여를 남기고 나머지는 NULL로 만든다. SUM은 NULL을 건너뛰므로 5000 + 4800 = 9800이다."
+                },
+                {
+                  "q": "오라클의 SELECT * FROM (SELECT 부서번호, 직급 FROM 사원) PIVOT (COUNT(*) FOR 직급 IN ('대리' AS 대리)); 와 같은 결과를 내는 SQL은?",
+                  "choices": ["SELECT 부서번호, COUNT(CASE WHEN 직급 = '대리' THEN 1 END) AS 대리 FROM 사원 GROUP BY 부서번호", "SELECT 직급, COUNT(*) AS 대리 FROM 사원 WHERE 직급 = '대리' GROUP BY 직급", "SELECT 부서번호, COUNT(*) AS 대리 FROM 사원 WHERE 직급 = '대리' GROUP BY 부서번호", "SELECT 부서번호, CASE WHEN 직급 = '대리' THEN 1 END AS 대리 FROM 사원"],
+                  "answer": 1,
+                  "explain": "PIVOT은 부서번호마다 한 행을 만들고, 대리가 없는 부서도 0으로 남긴다. 3번은 WHERE에서 대리가 아닌 행을 먼저 지워서 대리가 없는 부서가 결과에서 빠진다. 4번은 GROUP BY가 없어 행이 줄지 않는다."
+                }
+              ]
+            },
+            {
+              "id": "pivot-empty-cell",
+              "title": "PIVOT의 빈 칸: 0일까 NULL일까",
+              "summary": "해당하는 행이 하나도 없는 칸은 COUNT로 집계하면 0, SUM·AVG·MAX·MIN으로 집계하면 NULL이 된다.",
+              "desc": "PIVOT 표를 만들다 보면 '10번 부서의 부장'처럼 짝이 되는 행이 하나도 없는 칸이 생긴다. 이 칸에 무엇이 들어갈지는 집계 함수가 정한다. GROUP BY 단원의 집계 함수 카드에서 배운 규칙과 같다.\n· COUNT: 센 것이 없으면 0\n· SUM, AVG, MAX, MIN: 계산할 값이 없으면 NULL\n그래서 인원 표의 빈칸은 0, 급여 합계 표의 빈칸은 NULL이 된다. 오라클 PIVOT 절로 만든 표도, CASE로 만든 표도 같다.\n급여 표의 빈칸을 0으로 보이게 하려면 두 가지 방법이 있다.\n① CASE에 ELSE 0을 넣는다: SUM(CASE WHEN 직급 = '부장' THEN 급여 ELSE 0 END)\n② 결과를 NVL(오라클)이나 COALESCE로 감싼다: COALESCE(SUM(CASE ... END), 0)\n예시 SQL은 같은 칸(부장)을 세 가지 방법으로 계산해서 차이를 비교한다.",
+              "analogy": "출석표에서 아무도 안 온 날은 '0명'이라고 적을 수 있지만, '그날 온 사람들의 평균 키'는 잴 사람이 없으니 빈칸으로 둘 수밖에 없다.",
+              "sql": "SELECT 부서번호,\n       COUNT(CASE WHEN 직급 = '부장' THEN 1 END) AS 부장수,\n       SUM(CASE WHEN 직급 = '부장' THEN 급여 END) AS 부장급여_ELSE없음,\n       SUM(CASE WHEN 직급 = '부장' THEN 급여 ELSE 0 END) AS 부장급여_ELSE0\nFROM 사원\nWHERE 부서번호 IS NOT NULL\nGROUP BY 부서번호\nORDER BY 부서번호;",
+              "pitfalls": [
+                "ELSE 0은 SUM에서는 괜찮지만 AVG에 쓰면 값이 틀어진다. 0인 행까지 평균에 들어가서, AVG(CASE WHEN 직급 = '부장' THEN 급여 ELSE 0 END)는 그 부서 전체 인원으로 나눈 값이 된다. 20번 부서라면 6500이 아니라 6500 ÷ 4 = 1625다.",
+                "COUNT(CASE WHEN 조건 THEN 1 ELSE 0 END)는 조건과 상관없이 모든 행을 센다. 0도 NULL이 아닌 값이기 때문이다. COUNT로 셀 때는 ELSE를 쓰지 않거나, SUM(CASE ... THEN 1 ELSE 0 END)로 쓴다.",
+                "결과 표의 NULL이 '해당자가 없어서'인지 '원래 데이터가 NULL이라서'인지는 표만 보고는 구분할 수 없다."
+              ],
+              "exam": "같은 PIVOT 표를 COUNT와 SUM으로 각각 만들었을 때 빈칸의 값(0 또는 NULL)을 묻는 문제, ELSE 0의 유무에 따른 결과 차이를 묻는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "부장이 한 명도 없는 부서에서 결과가 NULL인 것은?",
+                  "choices": ["COUNT(CASE WHEN 직급 = '부장' THEN 1 END)", "SUM(CASE WHEN 직급 = '부장' THEN 1 ELSE 0 END)", "SUM(CASE WHEN 직급 = '부장' THEN 급여 END)", "COALESCE(SUM(CASE WHEN 직급 = '부장' THEN 급여 END), 0)"],
+                  "answer": 3,
+                  "explain": "CASE가 모든 행을 NULL로 만들고 SUM은 더할 값이 없어 NULL이다. 1번 COUNT는 0, 2번은 ELSE 0을 더해 0, 4번은 NULL을 0으로 바꿔 0이다."
+                },
+                {
+                  "q": "4명이 있는 부서에서 부장 1명의 급여가 6000일 때 AVG(CASE WHEN 직급 = '부장' THEN 급여 ELSE 0 END)의 값은?",
+                  "choices": ["6000", "1500", "NULL", "0"],
+                  "answer": 2,
+                  "explain": "ELSE 0 때문에 부장이 아닌 3명도 0으로 평균에 들어간다. (6000 + 0 + 0 + 0) ÷ 4 = 1500이다. 부장의 평균 급여를 구하려면 ELSE를 빼야 한다."
+                }
+              ]
+            },
+            {
+              "id": "unpivot-basic",
+              "title": "UNPIVOT: 열을 행으로 접기",
+              "summary": "UNPIVOT은 PIVOT의 반대로, 여러 열에 나뉜 값을 '항목 이름'과 '값' 두 열로 접어 세로로 늘어놓는다.",
+              "desc": "사원 테이블에는 급여와 커미션이 서로 다른 열로 나란히 있다. 사원별 금액을 '항목 | 금액' 한 열로 모아 보고 싶으면 열을 행으로 접어야 한다. 이것이 UNPIVOT이다.\n오라클에서는 이렇게 쓴다.\nSELECT 이름, 항목, 금액\nFROM (SELECT 이름, 급여, 커미션 FROM 사원 WHERE 부서번호 = 30)\nUNPIVOT (금액 FOR 항목 IN (급여 AS '급여', 커미션 AS '커미션'));\n· 금액: 원래 칸에 있던 값이 들어갈 새 열\n· FOR 항목: 원래 열 이름이 값으로 들어갈 새 열\n· IN (...): 접을 열 목록\n사원 한 명(1행)이 접을 열 개수(2개)만큼 행이 되어, 4명 × 2열 = 8행이 나온다.\nSQLite에는 UNPIVOT이 없어서, 집합 연산자 단원의 UNION ALL로 열마다 SELECT를 하나씩 써서 이어 붙인다. 예시 SQL이 그 방법이다.",
+              "analogy": "가로로 '국어 · 영어 · 수학' 칸이 있는 성적표를 '과목 | 점수' 두 칸짜리 세로 목록으로 다시 적는 것과 같다. 학생 한 명이 과목 수만큼 여러 줄이 된다.",
+              "sql": "SELECT 이름, '급여' AS 항목, 급여 AS 금액\nFROM 사원\nWHERE 부서번호 = 30\nUNION ALL\nSELECT 이름, '커미션', 커미션\nFROM 사원\nWHERE 부서번호 = 30\nORDER BY 이름, 항목;",
+              "pitfalls": [
+                "UNION이 아니라 UNION ALL을 써야 한다. UNION은 중복을 없애므로, 이름·항목·금액이 우연히 모두 같은 행이 있으면 하나가 사라진다.",
+                "이어 붙이는 SELECT들은 열 개수와 순서가 같아야 하고, 첫 SELECT의 별칭(항목, 금액)이 결과의 열 이름이 된다(집합 연산자 단원).",
+                "접는 열들은 데이터 타입이 서로 맞아야 한다. 숫자 열과 문자 열을 한 열로 접을 수는 없다."
+              ],
+              "oracle": [
+                "UNPIVOT 절: 오라클 11g부터 있는 문법이고 SQLite에는 없다. 연습창에서는 예시처럼 UNION ALL로 대신한다."
+              ],
+              "exam": "가로형 표와 UNPIVOT 문장을 주고 결과 행 수나 특정 행의 값을 묻는다. FOR 뒤의 열(원래 열 이름이 들어가는 열)과 FOR 앞의 열(값이 들어가는 열)을 구분하는 것이 핵심이다.",
+              "quiz": [
+                {
+                  "q": "사원 4명의 (급여, 커미션, 보너스) 세 금액 열을 UNPIVOT으로 접었다. 금액에 NULL이 하나도 없다면 결과 행 수는?",
+                  "choices": ["4", "7", "3", "12"],
+                  "answer": 4,
+                  "explain": "사원 한 명이 접은 열 수(3개)만큼 행이 되므로 4 × 3 = 12행이다."
+                },
+                {
+                  "q": "오라클의 UNPIVOT (금액 FOR 항목 IN (급여, 커미션)) 에서 '항목' 열에 들어가는 값은?",
+                  "choices": ["급여와 커미션의 합계", "급여, 커미션 같은 원래 열의 이름", "사원 이름", "급여와 커미션 중 큰 값"],
+                  "answer": 2,
+                  "explain": "FOR 뒤의 열에는 그 값이 어느 열에서 왔는지(원래 열 이름)가 들어가고, FOR 앞의 열(금액)에 그 칸의 값이 들어간다."
+                }
+              ]
+            },
+            {
+              "id": "unpivot-nulls",
+              "title": "UNPIVOT과 NULL, 그리고 되돌리기의 한계",
+              "summary": "오라클 UNPIVOT은 기본적으로 값이 NULL인 칸을 결과에서 뺀다(EXCLUDE NULLS). 남기려면 INCLUDE NULLS를 쓴다.",
+              "desc": "10번 부서의 김대표와 한사원은 커미션이 NULL이다. 이 둘의 급여와 커미션을 접으면 어떻게 될까?\n· 오라클 UNPIVOT 기본값(EXCLUDE NULLS): 커미션이 NULL인 칸은 행을 만들지 않는다. 결과 2행.\n· UNPIVOT INCLUDE NULLS (금액 FOR 항목 IN (...)): NULL인 칸도 행으로 남긴다. 결과 4행.\nUNION ALL로 만들면 반대로 NULL이 그대로 남는다(INCLUDE NULLS와 같다). 오라클 기본값처럼 빼려면 각 SELECT에 WHERE 열 IS NOT NULL을 붙인다. 예시의 두 SQL이 이 차이를 보여 준다.\n하나 더 알아 둘 점이 있다. PIVOT으로 집계한 표를 UNPIVOT해도 원래 행으로 돌아가지 않는다. PIVOT하면서 SUM·COUNT로 여러 행을 합쳤기 때문에, 합치기 전의 사원 한 명 한 명은 이미 사라졌다.",
+              "analogy": "설문 응답을 '질문 | 답' 목록으로 옮겨 적을 때, 비워 둔 답을 아예 안 적을지(EXCLUDE) '무응답'이라고 한 줄 적을지(INCLUDE) 정하는 것과 같다. 또 이미 '평균 점수'로 요약한 표를 아무리 풀어 적어도 학생 한 명 한 명의 답안은 되살아나지 않는다.",
+              "figures": [
+                {
+                  "title": "오라클 UNPIVOT 결과 비교 (10번 부서의 급여, 커미션)",
+                  "columns": ["옵션", "결과"],
+                  "rows": [
+                    ["EXCLUDE NULLS (기본값)", "김대표-급여-9000, 한사원-급여-3100 (2행)"],
+                    ["INCLUDE NULLS", "위 2행 + 김대표-커미션-NULL, 한사원-커미션-NULL (4행)"]
+                  ]
+                }
+              ],
+              "sql": "SELECT 이름, '급여' AS 항목, 급여 AS 금액\nFROM 사원 WHERE 부서번호 = 10\nUNION ALL\nSELECT 이름, '커미션', 커미션\nFROM 사원 WHERE 부서번호 = 10\nORDER BY 이름, 항목;\n\nSELECT 이름, '급여' AS 항목, 급여 AS 금액\nFROM 사원 WHERE 부서번호 = 10\nUNION ALL\nSELECT 이름, '커미션', 커미션\nFROM 사원 WHERE 부서번호 = 10 AND 커미션 IS NOT NULL\nORDER BY 이름, 항목;",
+              "pitfalls": [
+                "오라클 UNPIVOT의 기본값은 EXCLUDE NULLS다. 아무 옵션도 쓰지 않으면 NULL 칸은 결과에서 사라진다.",
+                "UNION ALL 방식은 NULL을 그대로 남긴다. 오라클 UNPIVOT과 결과를 맞추려면 IS NOT NULL 조건이 필요하다.",
+                "PIVOT과 UNPIVOT은 서로 정확히 되돌리는 관계가 아니다. 집계로 합쳐진 행은 UNPIVOT으로 되살아나지 않는다."
+              ],
+              "oracle": [
+                "UNPIVOT과 NULL: 오라클 UNPIVOT은 기본으로 NULL 칸을 뺀다. SQLite에는 UNPIVOT이 없고, 대신 쓰는 UNION ALL은 NULL을 그대로 남기므로 조건을 따로 걸지 않으면 결과 행 수가 다르다."
+              ],
+              "exam": "NULL이 섞인 가로형 표를 UNPIVOT했을 때의 결과 행 수를 묻는 문제가 나온다. INCLUDE NULLS를 썼는지에 따라 답이 달라진다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 사원 3명의 (급여, 커미션)을 옵션 없이 UNPIVOT했다. 커미션이 NULL인 사람이 2명이면 결과 행 수는?",
+                  "choices": ["6", "4", "3", "2"],
+                  "answer": 2,
+                  "explain": "기본값 EXCLUDE NULLS 때문에 NULL인 칸 2개가 빠진다. 3명 × 2열 = 6칸에서 2칸을 빼 4행이다."
+                },
+                {
+                  "q": "같은 데이터에 UNPIVOT INCLUDE NULLS를 쓰면 결과 행 수는?",
+                  "choices": ["2", "4", "5", "6"],
+                  "answer": 4,
+                  "explain": "INCLUDE NULLS는 NULL인 칸도 행으로 남기므로 3명 × 2열 = 6행이다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "SQL 활용", "name": "정규 표현식", "cards": [] },
         { "group": "관리 구문", "name": "DML", "cards": [] },
         { "group": "관리 구문", "name": "TCL", "cards": [] },
