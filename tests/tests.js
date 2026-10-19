@@ -88,6 +88,7 @@ const DONE_UNITS = [
   '집합 연산자',
   '그룹 함수',
   '윈도우 함수',
+  'Top N 쿼리',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -526,6 +527,27 @@ test('윈도우 함수 단원: 카드·문제에 적은 값과 SQLite 동작', a
   assert(fails('SELECT 이름 FROM 사원 WHERE ROW_NUMBER() OVER (ORDER BY 급여) = 1'), 'WHERE에 윈도우 함수');
   assert(fails('SELECT RANK(급여) OVER (ORDER BY 급여) FROM 사원'), 'RANK(열)');
   assert(fails('SELECT SUM(급여) OVER (ORDER BY 급여 ROWS BETWEEN CURRENT ROW AND 1 PRECEDING) FROM 사원'), '범위 거꾸로');
+  db.close();
+});
+
+test('Top N 쿼리 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, rows, fails } = await seededDb();
+  eq(rows('SELECT 이름 FROM 사원 ORDER BY 급여 DESC LIMIT 3').flat(), ['김대표', '이부장', '박부장']);
+  eq(rows('SELECT * FROM (SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC) LIMIT 3').map((r) => r[0]), ['김대표', '이부장', '박부장']);
+  eq(rows('SELECT 이름 FROM 사원 ORDER BY 급여 DESC LIMIT 3 OFFSET 3').flat(), ['최과장', '정과장', '강대리']);
+  eq(rows('SELECT 이름 FROM 사원 ORDER BY 급여 DESC LIMIT 3, 3').flat(), ['최과장', '정과장', '강대리'], 'LIMIT 건너뛸수, 가져올수');
+  eq(rows('SELECT 이름 FROM 사원 ORDER BY 급여 DESC LIMIT 4 OFFSET 8').length, 3, '마지막 페이지');
+  eq(rows('SELECT 이름 FROM (SELECT 이름, ROW_NUMBER() OVER (ORDER BY 급여 DESC) AS rn FROM 사원) WHERE rn BETWEEN 4 AND 6').flat(), ['최과장', '정과장', '강대리']);
+  eq(rows('SELECT 부서번호, 이름 FROM (SELECT 부서번호, 이름, ROW_NUMBER() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC) AS 순번 FROM 사원 WHERE 부서번호 IS NOT NULL) WHERE 순번 <= 2 ORDER BY 부서번호, 순번'),
+    [[10, '김대표'], [10, '한사원'], [20, '이부장'], [20, '최과장'], [30, '박부장'], [30, '정과장']]);
+  eq(rows('SELECT 부서번호 FROM (SELECT 부서번호, ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS rn FROM 사원 GROUP BY 부서번호) WHERE rn = 1').length, 1, 'ROW_NUMBER 1위는 하나');
+  eq(rows('SELECT 부서번호 FROM (SELECT 부서번호, RANK() OVER (ORDER BY COUNT(*) DESC) AS rk FROM 사원 GROUP BY 부서번호) WHERE rk = 1 ORDER BY 1').flat(), [20, 30], 'RANK 1위는 동점 둘');
+  // 오라클·SQL Server 문법은 SQLite에 없음
+  assert(fails('SELECT 이름 FROM 사원 WHERE ROWNUM <= 3'), 'ROWNUM 없음');
+  assert(fails('SELECT 이름 FROM 사원 ORDER BY 급여 DESC FETCH FIRST 3 ROWS ONLY'), 'FETCH FIRST 없음');
+  assert(fails('SELECT 이름 FROM 사원 ORDER BY 급여 DESC OFFSET 3 ROWS FETCH NEXT 3 ROWS ONLY'), 'OFFSET ROWS 없음');
+  assert(fails('SELECT TOP 3 이름 FROM 사원'), 'TOP 없음');
+  assert(fails('SELECT 이름 FROM 사원 ORDER BY 급여 DESC LIMIT 3 WITH TIES'), 'WITH TIES 없음');
   db.close();
 });
 

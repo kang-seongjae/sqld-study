@@ -2345,7 +2345,178 @@
             }
           ]
         },
-        { "group": "SQL 활용", "name": "Top N 쿼리", "cards": [] },
+        {
+          "group": "SQL 활용",
+          "name": "Top N 쿼리",
+          "cards": [
+            {
+              "id": "topn-intro",
+              "title": "Top N 쿼리란: 정렬하고 위에서 N개",
+              "summary": "Top N 쿼리는 '급여 상위 3명'처럼 정렬한 결과에서 앞의 N개 행만 가져오는 쿼리다. 반드시 '정렬 먼저, 자르기 나중'이어야 한다.",
+              "desc": "'급여가 가장 높은 3명', '가장 최근에 입사한 2명'처럼 순서상 앞쪽 몇 개만 보고 싶을 때가 많다. 이런 쿼리를 Top N 쿼리라고 한다.\nTop N 쿼리의 핵심은 순서다. 먼저 ORDER BY로 줄을 세우고, 그다음에 앞에서 N개를 잘라야 한다. 자른 뒤에 정렬하면 '아무 3명을 골라 급여순으로 세운 것'이 되어 버린다.\n앞에서 N개를 자르는 방법은 DBMS마다 다르다.\n· 오라클: ROWNUM(다음 카드), 12c부터 FETCH FIRST N ROWS ONLY(세 번째 카드)\n· SQL Server: TOP (N)\n· SQLite, MySQL, PostgreSQL: LIMIT N\n· 모든 DBMS 공통: ROW_NUMBER 같은 윈도우 함수(네 번째 카드)\n예시 SQL은 SQLite의 LIMIT로 급여 상위 3명을 구한다. SQLite에서는 LIMIT가 ORDER BY 다음에 적용되므로 '정렬 먼저, 자르기 나중'이 저절로 지켜진다.",
+              "analogy": "시상식과 같다. 모든 선수의 기록을 먼저 순서대로 늘어놓은 뒤(ORDER BY) 앞에서 세 명에게 메달을 준다(Top 3). 아무나 세 명을 먼저 뽑고 그 안에서 순서를 매기면 공정한 시상이 아니다.",
+              "sql": "SELECT 이름, 직급, 급여\nFROM 사원\nORDER BY 급여 DESC\nLIMIT 3;",
+              "pitfalls": [
+                "ORDER BY 없이 앞에서 N개를 자르면 '어떤 N개'가 나올지 보장되지 않는다. Top N에는 ORDER BY가 꼭 함께 있어야 한다.",
+                "N번째와 같은 값을 가진 행이 더 있으면(동점), 단순히 N개만 자를 때 그중 일부가 잘려 나간다. 동점 처리는 이 단원 마지막 카드에서 다룬다.",
+                "SQLite·MySQL의 LIMIT 3, 3 은 '앞의 3개를 건너뛰고 3개'라는 뜻이다. 앞 숫자가 건너뛸 개수, 뒤 숫자가 가져올 개수라서 LIMIT 3 OFFSET 3 과 같다."
+              ],
+              "oracle": [
+                "LIMIT: 오라클에는 LIMIT가 없다. 오라클은 ROWNUM이나 FETCH FIRST N ROWS ONLY(12c부터)를 쓴다. 반대로 SQLite에는 ROWNUM과 FETCH FIRST가 없다."
+              ],
+              "exam": "Top N 쿼리가 '정렬 후 자르기'여야 한다는 점, DBMS별 문법(오라클 ROWNUM·FETCH, SQL Server TOP)을 구분하는 문제가 나온다.",
+              "quiz": [
+                {
+                  "q": "급여 상위 3명을 구하는 Top N 쿼리에 대한 설명으로 옳은 것은?",
+                  "choices": ["급여순으로 먼저 정렬한 뒤 앞의 3개를 가져와야 한다", "행을 3개 먼저 고른 뒤 급여순으로 정렬하면 된다", "ORDER BY 없이도 항상 급여가 높은 3명이 나온다", "Top N 쿼리는 GROUP BY가 있어야만 쓸 수 있다"],
+                  "answer": 1,
+                  "explain": "Top N은 '정렬 먼저, 자르기 나중'이다. 3개를 먼저 고르면 아무 3명이 뽑힌 뒤 그 안에서만 정렬된다."
+                },
+                {
+                  "q": "DBMS와 Top N 문법의 짝으로 옳지 않은 것은?",
+                  "choices": ["오라클 - ROWNUM", "SQL Server - TOP (N)", "오라클 12c 이상 - FETCH FIRST N ROWS ONLY", "오라클 - LIMIT N"],
+                  "answer": 4,
+                  "explain": "LIMIT는 SQLite, MySQL, PostgreSQL 등에서 쓰는 문법이고 오라클에는 없다."
+                }
+              ]
+            },
+            {
+              "id": "topn-rownum",
+              "title": "오라클 ROWNUM",
+              "summary": "ROWNUM은 오라클이 결과 행에 1부터 차례로 붙여 주는 가상 열이다. ORDER BY보다 먼저 붙기 때문에, 정렬은 인라인 뷰 안에서 먼저 해야 한다.",
+              "desc": "ROWNUM은 테이블에 실제로 있는 열이 아니라, 오라클이 WHERE 조건을 통과한 행에 1, 2, 3… 순서로 붙여 주는 번호(가상 열, Pseudo Column)다.\n문제는 번호가 붙는 시점이다. 처리 순서(SELECT 기본 단원)에서 ROWNUM은 행이 WHERE를 통과할 때 붙고, ORDER BY는 맨 마지막이다. 그래서\nSELECT 이름, 급여 FROM 사원 WHERE ROWNUM <= 3 ORDER BY 급여 DESC;\n는 '아무 순서로 읽은 3명'을 먼저 고른 뒤 그 3명만 급여순으로 정렬한다. 급여 상위 3명이 아니다.\n올바른 방법은 정렬을 인라인 뷰(FROM 절의 서브쿼리) 안에서 먼저 하고, 바깥에서 ROWNUM으로 자르는 것이다.\nSELECT * FROM (SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC) WHERE ROWNUM <= 3;\n또 하나의 함정이 있다. ROWNUM은 조건을 통과한 행에만 다음 번호를 주므로, 첫 행이 1번을 받고도 조건에서 떨어지면 2번은 영영 생기지 않는다. 그래서 ROWNUM = 1, ROWNUM <= N, ROWNUM < N 은 되지만 ROWNUM = 2, ROWNUM > 1 은 항상 0행이다.\n예시 SQL은 SQLite에서 같은 결과를 내는 대체 문장이다. SQLite에는 ROWNUM이 없어서 LIMIT로 자른다.",
+              "analogy": "번호표 기계와 같다. 입장 조건(WHERE)을 통과한 사람에게만 1번, 2번… 번호표가 나간다. '2번 번호표를 가진 사람만 들어오세요'라고 하면, 1번 번호표를 받은 사람이 매번 입장에 실패하므로 2번 번호표는 끝내 나오지 않는다.",
+              "figures": [
+                {
+                  "title": "오라클에서 ROWNUM 조건별 결과 (사원 11명 기준)",
+                  "columns": ["WHERE 조건", "결과 행 수", "이유"],
+                  "rows": [
+                    ["ROWNUM = 1", "1", "첫 행이 1번을 받고 통과한다"],
+                    ["ROWNUM <= 3", "3", "통과한 행에 1, 2, 3번이 차례로 붙는다"],
+                    ["ROWNUM < 4", "3", "ROWNUM <= 3과 같다"],
+                    ["ROWNUM = 2", "0", "1번을 받은 행이 떨어지면 다음 행이 또 1번을 받아 떨어진다"],
+                    ["ROWNUM > 1", "0", "같은 이유로 어떤 행도 2번 이상을 받지 못한다"]
+                  ],
+                  "note": "ROWNUM은 '조건을 통과한 행'에만 다음 번호를 준다."
+                }
+              ],
+              "sql": "-- 오라클: SELECT * FROM (SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC) WHERE ROWNUM <= 3;\n-- SQLite에는 ROWNUM이 없어 같은 일을 LIMIT로 한다.\nSELECT *\nFROM (SELECT 이름, 급여\n      FROM 사원\n      ORDER BY 급여 DESC)\nLIMIT 3;",
+              "pitfalls": [
+                "WHERE ROWNUM <= 3 ORDER BY 급여 DESC 는 오류가 나지 않아서 더 위험하다. 결과가 그럴듯해 보여도 '상위 3명'이 아닐 수 있다.",
+                "ROWNUM = 2나 ROWNUM > 1처럼 1번을 건너뛰는 조건은 0행이다. '4~6위'처럼 중간 구간을 자르려면 인라인 뷰에서 ROWNUM에 별칭을 붙여 한 번 더 감싸거나 ROW_NUMBER를 쓴다(네 번째 카드).",
+                "인라인 뷰 안의 ORDER BY는 '정렬된 결과를 바깥에 넘겨주기' 위한 것이다. 바깥의 ROWNUM이 그 순서대로 번호를 붙인다."
+              ],
+              "oracle": [
+                "ROWNUM: 오라클 전용 가상 열이라 SQLite에서는 'no such column' 오류가 난다. 연습창에서는 ORDER BY 뒤에 LIMIT를 쓴다."
+              ],
+              "exam": "ROWNUM과 ORDER BY를 같은 수준에 쓴 SQL이 상위 N개를 보장하지 않는다는 점, ROWNUM = 2와 ROWNUM > 1이 0행이라는 점을 묻는 문제가 단골이다.",
+              "quiz": [
+                {
+                  "q": "오라클에서 사원 11명이 있는 테이블에 SELECT 이름 FROM 사원 WHERE ROWNUM > 1; 을 실행한 결과 행 수는?",
+                  "choices": ["0", "1", "10", "11"],
+                  "answer": 1,
+                  "explain": "첫 행이 ROWNUM 1을 받지만 1 > 1이 거짓이라 떨어진다. 다음 행도 다시 1을 받아 떨어지므로 어떤 행도 통과하지 못해 0행이다."
+                },
+                {
+                  "q": "오라클에서 급여 상위 3명을 올바르게 구하는 SQL은?",
+                  "choices": ["SELECT 이름, 급여 FROM 사원 WHERE ROWNUM <= 3 ORDER BY 급여 DESC;", "SELECT * FROM (SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC) WHERE ROWNUM <= 3;", "SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC WHERE ROWNUM <= 3;", "SELECT * FROM (SELECT 이름, 급여 FROM 사원 WHERE ROWNUM <= 3) ORDER BY 급여 DESC;"],
+                  "answer": 2,
+                  "explain": "정렬을 인라인 뷰 안에서 먼저 하고 바깥에서 ROWNUM으로 잘라야 한다. 1번과 4번은 아무 3명을 먼저 고른 뒤 정렬하고, 3번은 절의 순서가 틀려 문법 오류다."
+                }
+              ]
+            },
+            {
+              "id": "topn-fetch",
+              "title": "FETCH FIRST, OFFSET과 SQL Server TOP",
+              "summary": "오라클 12c부터는 ORDER BY 뒤에 FETCH FIRST N ROWS ONLY를 써서 표준 문법으로 Top N을 구한다. OFFSET으로 앞의 행을 건너뛰면 페이지 나누기도 된다.",
+              "desc": "ROWNUM의 함정을 피하려고 SQL 표준에 들어온 문법이 FETCH FIRST다. 오라클은 12c 버전부터 지원한다.\nSELECT 이름, 급여 FROM 사원\nORDER BY 급여 DESC\nFETCH FIRST 3 ROWS ONLY;\nORDER BY 다음에 처리되므로 인라인 뷰 없이도 '정렬 먼저, 자르기 나중'이 지켜진다.\nOFFSET n ROWS를 앞에 붙이면 앞의 n행을 건너뛴다. 게시판의 2페이지(한 페이지 3개)는 OFFSET 3 ROWS FETCH NEXT 3 ROWS ONLY 다. FIRST와 NEXT, ROW와 ROWS는 뜻이 같아서 어느 쪽을 써도 된다.\nSQL Server는 SELECT 바로 뒤에 TOP (N)을 쓴다. SELECT TOP (3) 이름, 급여 FROM 사원 ORDER BY 급여 DESC; 도 ORDER BY에 따라 앞의 3개를 가져온다.\nSQLite에는 FETCH와 TOP이 없어서 LIMIT n OFFSET m 으로 같은 일을 한다. 예시 SQL은 급여순 2페이지(4~6위)다.",
+              "analogy": "책갈피와 같다. OFFSET은 '앞의 몇 쪽을 넘기고', FETCH는 '거기서부터 몇 쪽만 읽어라'다. 게시판 페이지 넘기기가 바로 이 원리다.",
+              "sql": "-- 오라클 12c 이상: ... ORDER BY 급여 DESC OFFSET 3 ROWS FETCH NEXT 3 ROWS ONLY;\n-- SQLite에서는 LIMIT와 OFFSET으로 쓴다.\nSELECT 이름, 급여\nFROM 사원\nORDER BY 급여 DESC\nLIMIT 3 OFFSET 3;",
+              "pitfalls": [
+                "FETCH와 OFFSET은 ORDER BY 뒤에 쓴다. 순서는 ORDER BY → OFFSET → FETCH다.",
+                "OFFSET으로 건너뛸 행이 남은 행보다 많으면 오류가 아니라 0행이 나온다. 마지막 페이지에 행이 모자라면 있는 만큼만 나온다(예제에서 8행을 건너뛰고 4행을 달라고 하면 3행).",
+                "SQL Server의 TOP은 SELECT 바로 뒤, 오라클의 FETCH는 문장 맨 끝에 온다. 위치가 다르다."
+              ],
+              "oracle": [
+                "문법: 오라클은 FETCH FIRST N ROWS ONLY와 OFFSET n ROWS를 쓰고, SQLite는 LIMIT N OFFSET n을 쓴다. 서로 상대의 문법을 쓰면 오류다. SQL Server의 TOP은 둘 다 없다."
+              ],
+              "exam": "FETCH FIRST·OFFSET 문법의 순서와 의미, SQL Server TOP과 오라클 FETCH를 같은 결과로 짝짓는 문제가 나온다. 페이지 번호를 주고 OFFSET 값을 계산하게 하기도 한다.",
+              "quiz": [
+                {
+                  "q": "한 페이지에 10개씩 보여 줄 때 3페이지를 가져오는 오라클 문법으로 옳은 것은? (ORDER BY는 이미 있다고 하자)",
+                  "choices": ["OFFSET 3 ROWS FETCH NEXT 10 ROWS ONLY", "OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY", "OFFSET 30 ROWS FETCH NEXT 10 ROWS ONLY", "FETCH FIRST 30 ROWS ONLY"],
+                  "answer": 2,
+                  "explain": "3페이지는 앞의 두 페이지(10 × 2 = 20행)를 건너뛰고 10행을 가져온다. 4번은 1~3페이지 30행을 모두 가져온다."
+                },
+                {
+                  "q": "SQL Server의 SELECT TOP (3) 이름, 급여 FROM 사원 ORDER BY 급여 DESC; 와 같은 결과를 내는 오라클 12c 문장은?",
+                  "choices": ["SELECT 이름, 급여 FROM 사원 WHERE ROWNUM <= 3 ORDER BY 급여 DESC;", "SELECT 이름, 급여 FROM 사원 ORDER BY 급여 DESC FETCH FIRST 3 ROWS ONLY;", "SELECT TOP 3 이름, 급여 FROM 사원 ORDER BY 급여 DESC;", "SELECT 이름, 급여 FROM 사원 FETCH FIRST 3 ROWS ONLY ORDER BY 급여 DESC;"],
+                  "answer": 2,
+                  "explain": "FETCH FIRST는 ORDER BY 뒤에 와서 정렬된 결과의 앞 3행을 가져온다. 1번은 ROWNUM이 정렬 전에 붙고, 3번은 오라클에 TOP이 없으며, 4번은 절의 순서가 틀렸다."
+                }
+              ]
+            },
+            {
+              "id": "topn-row-number",
+              "title": "ROW_NUMBER로 Top N 구하기",
+              "summary": "윈도우 함수로 순번을 매긴 뒤 바깥 쿼리에서 순번으로 거르면, 어느 DBMS에서나 Top N을 구할 수 있다. PARTITION BY를 더하면 그룹별 Top N이 된다.",
+              "desc": "윈도우 함수 단원에서 ROW_NUMBER는 WHERE에 바로 쓸 수 없다고 했다. 그래서 인라인 뷰 안에서 순번을 매겨 별칭을 붙이고, 바깥 WHERE에서 그 별칭으로 거른다.\nSELECT 이름, 급여 FROM (\n  SELECT 이름, 급여, ROW_NUMBER() OVER (ORDER BY 급여 DESC) AS 순번 FROM 사원\n) WHERE 순번 <= 3;\n이 방법은 오라클과 SQLite에서 똑같이 동작한다.\n장점이 두 가지 있다.\n· 중간 구간: WHERE 순번 BETWEEN 4 AND 6 처럼 4~6위도 바로 자를 수 있다. ROWNUM으로는 번거롭던 일이다.\n· 그룹별 Top N: PARTITION BY 부서번호를 넣으면 '부서마다 급여 상위 2명'처럼 그룹마다 따로 자를 수 있다. 예시 SQL이 이 경우다. LIMIT나 FETCH는 전체에서 한 번만 자르므로 이 일을 하지 못한다.",
+              "analogy": "학교 전체 1~3등을 뽑는 대신, 반마다 1~2등을 뽑아 반 대표로 보내는 것과 같다. 반별 등수(PARTITION BY)를 먼저 매기고, 등수가 2 이하인 학생만 고른다.",
+              "sql": "SELECT 부서번호, 이름, 급여, 순번\nFROM (SELECT 부서번호, 이름, 급여,\n             ROW_NUMBER() OVER (PARTITION BY 부서번호\n                                ORDER BY 급여 DESC) AS 순번\n      FROM 사원\n      WHERE 부서번호 IS NOT NULL)\nWHERE 순번 <= 2\nORDER BY 부서번호, 순번;",
+              "pitfalls": [
+                "순번 별칭은 인라인 뷰 안에서 붙였기 때문에 바깥 WHERE에서 쓸 수 있다. 같은 수준의 WHERE에서는 쓸 수 없다.",
+                "ROW_NUMBER는 동점이어도 다른 번호를 주므로, N번째와 같은 값인 행이 잘려 나갈 수 있다. 동점까지 포함하려면 RANK를 쓴다(다음 카드).",
+                "인라인 뷰 안의 WHERE(부서번호 IS NOT NULL)는 순번을 매기기 전에, 바깥 WHERE(순번 <= 2)는 순번을 매긴 뒤에 행을 거른다."
+              ],
+              "exam": "인라인 뷰와 ROW_NUMBER로 Top N이나 중간 구간을 구하는 SQL의 결과를 묻거나, 그룹별 Top N을 구하는 올바른 SQL을 고르게 한다.",
+              "quiz": [
+                {
+                  "q": "부서별 급여 상위 2명을 구하려 한다. 인라인 뷰 안에 들어갈 식으로 알맞은 것은?",
+                  "choices": ["ROW_NUMBER() OVER (ORDER BY 급여 DESC)", "ROW_NUMBER() OVER (PARTITION BY 부서번호 ORDER BY 급여 DESC)", "ROW_NUMBER() OVER (PARTITION BY 급여 ORDER BY 부서번호)", "COUNT(*) OVER (PARTITION BY 부서번호)"],
+                  "answer": 2,
+                  "explain": "부서마다 따로 번호를 매기려면 PARTITION BY 부서번호, 급여가 높은 순으로 매기려면 ORDER BY 급여 DESC가 필요하다. 1번은 전체에서 한 번만 번호를 매긴다."
+                },
+                {
+                  "q": "SELECT 이름 FROM (SELECT 이름, ROW_NUMBER() OVER (ORDER BY 급여 DESC) AS rn FROM 사원) WHERE rn BETWEEN 4 AND 6; 을 예제 사원 테이블에서 실행한 결과 행 수는?",
+                  "choices": ["0", "3", "6", "11"],
+                  "answer": 2,
+                  "explain": "순번 4, 5, 6인 세 행(최과장, 정과장, 강대리)이 나온다. ROWNUM과 달리 인라인 뷰에서 이미 번호가 매겨져 있으므로 중간 구간도 걸러진다."
+                }
+              ]
+            },
+            {
+              "id": "topn-ties",
+              "title": "동점 처리: RANK와 WITH TIES",
+              "summary": "N번째와 같은 값을 가진 행까지 모두 포함하려면 RANK로 순위를 매겨 거르거나, 오라클의 FETCH FIRST N ROWS WITH TIES(SQL Server는 TOP (N) WITH TIES)를 쓴다.",
+              "desc": "'인원이 가장 많은 부서 1개'를 구한다고 하자. 예제에서는 20번과 30번 부서가 4명으로 동점이다.\n· ROW_NUMBER로 1번만 고르면 둘 중 하나만 나온다. 어느 쪽인지도 보장되지 않는다.\n· RANK로 1위를 고르면 동점인 두 부서가 모두 나온다.\n문제가 '상위 N개 행'을 원하는지, '상위 N위까지의 모든 행'을 원하는지에 따라 골라 쓴다.\n전용 문법도 있다.\n· 오라클 12c 이상: ORDER BY 인원 DESC FETCH FIRST 1 ROWS WITH TIES\n· SQL Server: SELECT TOP (1) WITH TIES ... ORDER BY 인원 DESC\nWITH TIES는 N번째 행과 ORDER BY 값이 같은 행을 더 붙여 준다. 그래서 결과가 N개보다 많을 수 있고, ORDER BY가 꼭 있어야 한다.\nSQLite에는 WITH TIES가 없어서 예시 SQL은 RANK로 같은 결과를 만든다.",
+              "analogy": "공동 1등을 대하는 두 가지 방식이다. '금메달은 한 개뿐'이라며 한 명에게만 주는 것이 ROW_NUMBER, '같은 기록이면 모두 금메달'로 주는 것이 RANK와 WITH TIES다.",
+              "sql": "SELECT 부서번호, 인원, 순위\nFROM (SELECT 부서번호, COUNT(*) AS 인원,\n             RANK() OVER (ORDER BY COUNT(*) DESC) AS 순위\n      FROM 사원\n      GROUP BY 부서번호)\nWHERE 순위 = 1;",
+              "pitfalls": [
+                "WITH TIES를 쓰면 결과 행이 N개보다 많아질 수 있다. 'TOP (3) WITH TIES의 결과는 항상 3행'이라는 보기는 틀렸다.",
+                "WITH TIES는 ORDER BY 기준으로 동점을 판단한다. ORDER BY가 없으면 쓸 수 없다.",
+                "DENSE_RANK <= 2 는 '서로 다른 값 기준 2위까지'라서 RANK <= 2 보다 행이 더 많이 나올 수 있다."
+              ],
+              "oracle": [
+                "WITH TIES: 오라클(12c 이상)은 FETCH FIRST N ROWS WITH TIES로 동점을 포함한다. SQLite에는 이 문법이 없어서 RANK로 순위를 매긴 뒤 거른다."
+              ],
+              "exam": "동점이 있는 표에서 TOP (N) WITH TIES나 FETCH ... WITH TIES의 결과 행 수, ROW_NUMBER와 RANK로 Top N을 구했을 때의 결과 차이를 묻는다.",
+              "quiz": [
+                {
+                  "q": "점수가 100, 90, 90, 80 인 네 행에 SQL Server의 SELECT TOP (2) WITH TIES * FROM 표 ORDER BY 점수 DESC; 를 실행한 결과 행 수는?",
+                  "choices": ["2", "3", "4", "1"],
+                  "answer": 2,
+                  "explain": "앞의 2행은 100과 90이다. 두 번째 행(90)과 점수가 같은 행이 하나 더 있어 함께 붙으므로 3행이다."
+                },
+                {
+                  "q": "예제 사원 테이블에서 부서별 인원으로 순위를 매겨 1위만 골랐다. 20번과 30번 부서가 4명으로 동점일 때 옳은 것은?",
+                  "choices": ["ROW_NUMBER로 거르면 2행, RANK로 거르면 1행", "ROW_NUMBER로 거르면 1행, RANK로 거르면 2행", "둘 다 1행", "둘 다 2행"],
+                  "answer": 2,
+                  "explain": "ROW_NUMBER는 동점이어도 1, 2로 번호를 갈라 1번이 하나뿐이다. RANK는 동점에 같은 1위를 주므로 두 부서가 모두 나온다."
+                }
+              ]
+            }
+          ]
+        },
         { "group": "SQL 활용", "name": "계층형 질의와 셀프 조인", "cards": [] },
         { "group": "SQL 활용", "name": "PIVOT 절과 UNPIVOT 절", "cards": [] },
         { "group": "SQL 활용", "name": "정규 표현식", "cards": [] },
