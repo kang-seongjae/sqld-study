@@ -101,6 +101,7 @@ const DONE_UNITS = [
   '속성',
   '관계',
   '식별자',
+  '정규화',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -843,6 +844,20 @@ test('식별자 단원: 카드·문제에 적은 값과 SQLite 동작', async ()
   const { db, one } = await seededDb();
   eq(one('SELECT COUNT(*), COUNT(DISTINCT 사원번호), COUNT(DISTINCT 이름), COUNT(DISTINCT 부서번호) FROM 사원'), [11, 11, 11, 3],
     '사원번호는 유일, 부서번호는 서로 다른 값 3개');
+  db.close();
+});
+
+test('정규화 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, rows } = await seededDb();
+  const wide = rows('SELECT d.부서번호, d.부서명, d.지역 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE d.부서번호 = 20');
+  eq(wide.length, 4, '개발 부서 4명');
+  assert(wide.every((r) => r[1] === '개발' && r[2] === '판교'), '조인하면 부서명·지역이 반복됨');
+  eq(rows('SELECT 직급, COUNT(DISTINCT 부서번호) FROM 사원 WHERE 부서번호 IS NOT NULL GROUP BY 직급 ORDER BY 1'),
+    [['과장', 2], ['대리', 2], ['대표', 1], ['부장', 2], ['사원', 3]], '직급 → 부서번호는 성립하지 않음');
+  eq(rows('SELECT 부서번호, COUNT(DISTINCT 부서명), COUNT(DISTINCT 지역) FROM 부서 GROUP BY 부서번호').every((r) => r[1] === 1 && r[2] === 1), true,
+    '부서번호 → 부서명, 지역');
+  eq(rows('SELECT e.이름, d.부서명, d.지역 FROM 사원 e JOIN 부서 d ON e.부서번호 = d.부서번호 WHERE e.사원번호 = 1004'),
+    [['최과장', '개발', '판교']]);
   db.close();
 });
 
