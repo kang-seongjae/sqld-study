@@ -89,6 +89,7 @@ const DONE_UNITS = [
   '그룹 함수',
   '윈도우 함수',
   'Top N 쿼리',
+  '계층형 질의와 셀프 조인',
 ];
 
 test('다 채운 단원: 카드 5~8장, 카드마다 모든 항목과 해설 달린 문제 2개', async () => {
@@ -548,6 +549,53 @@ test('Top N 쿼리 단원: 카드·문제에 적은 값과 SQLite 동작', async
   assert(fails('SELECT 이름 FROM 사원 ORDER BY 급여 DESC OFFSET 3 ROWS FETCH NEXT 3 ROWS ONLY'), 'OFFSET ROWS 없음');
   assert(fails('SELECT TOP 3 이름 FROM 사원'), 'TOP 없음');
   assert(fails('SELECT 이름 FROM 사원 ORDER BY 급여 DESC LIMIT 3 WITH TIES'), 'WITH TIES 없음');
+  db.close();
+});
+
+test('계층형 질의와 셀프 조인 단원: 카드·문제에 적은 값과 SQLite 동작', async () => {
+  const { db, one, rows, fails } = await seededDb();
+  const 펼치기 = (cond = '', where = '') => `WITH RECURSIVE 조직(사원번호, 이름, 관리자번호, 레벨, 경로) AS (
+    SELECT 사원번호, 이름, 관리자번호, 1, 이름 FROM 사원 WHERE 관리자번호 IS NULL
+    UNION ALL
+    SELECT e.사원번호, e.이름, e.관리자번호, 조직.레벨 + 1, 조직.경로 || ' > ' || e.이름
+    FROM 사원 e JOIN 조직 ON e.관리자번호 = 조직.사원번호 ${cond})
+    SELECT 레벨, 이름 FROM 조직 ${where} ORDER BY 경로`;
+  // 셀프 조인
+  eq(rows('SELECT e.이름, m.이름 FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호').length, 10);
+  eq(rows('SELECT e.이름, m.이름 FROM 사원 e LEFT OUTER JOIN 사원 m ON e.관리자번호 = m.사원번호').length, 11);
+  eq(one("SELECT m.이름 FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호 WHERE e.이름 = '강대리'"), ['최과장']);
+  eq(one('SELECT COUNT(*) FROM 사원 e, 사원 m'), [121]);
+  eq(rows('SELECT e.이름 FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호 JOIN 사원 mm ON m.관리자번호 = mm.사원번호').length, 7, '두 단계 위');
+  eq(rows('SELECT m.이름, COUNT(*) FROM 사원 e JOIN 사원 m ON e.관리자번호 = m.사원번호 GROUP BY m.사원번호, m.이름 ORDER BY 2 DESC, m.사원번호'),
+    [['김대표', 3], ['이부장', 2], ['최과장', 2], ['정과장', 2], ['박부장', 1]]);
+  // 계층 구조: 레벨별 인원, 리프 6명
+  eq(rows(`SELECT 레벨, COUNT(*) FROM (${펼치기()}) GROUP BY 레벨`), [[1, 1], [2, 3], [3, 3], [4, 4]]);
+  eq(rows("SELECT 이름 FROM 사원 e WHERE NOT EXISTS (SELECT 1 FROM 사원 c WHERE c.관리자번호 = e.사원번호) ORDER BY 이름").flat(),
+    ['강대리', '오인턴', '윤사원', '장사원', '조대리', '한사원']);
+  // 오라클 ORDER SIBLINGS BY 이름과 같은 순서(그림 표)
+  eq(rows(펼치기()).map((r) => r[1]), ['김대표', '박부장', '정과장', '장사원', '조대리', '이부장', '오인턴', '최과장', '강대리', '윤사원', '한사원']);
+  eq(rows(펼치기()).map((r) => r[0]), [1, 2, 3, 4, 4, 2, 3, 3, 4, 4, 2]);
+  // 역방향: 강대리 → 최과장 → 이부장 → 김대표
+  eq(rows(`WITH RECURSIVE 결재라인(사원번호, 이름, 관리자번호, 단계) AS (
+    SELECT 사원번호, 이름, 관리자번호, 1 FROM 사원 WHERE 이름 = '강대리'
+    UNION ALL
+    SELECT m.사원번호, m.이름, m.관리자번호, 결재라인.단계 + 1 FROM 사원 m JOIN 결재라인 ON m.사원번호 = 결재라인.관리자번호)
+    SELECT 단계, 이름 FROM 결재라인`), [[1, '강대리'], [2, '최과장'], [3, '이부장'], [4, '김대표']]);
+  // 경로(SYS_CONNECT_BY_PATH 대신)
+  eq(one(`WITH RECURSIVE 조직(사원번호, 이름, 경로) AS (
+    SELECT 사원번호, 이름, '/' || 이름 FROM 사원 WHERE 관리자번호 IS NULL
+    UNION ALL
+    SELECT e.사원번호, e.이름, 조직.경로 || '/' || e.이름 FROM 사원 e JOIN 조직 ON e.관리자번호 = 조직.사원번호)
+    SELECT 경로 FROM 조직 WHERE 이름 = '최과장'`), ['/김대표/이부장/최과장']);
+  // WHERE와 CONNECT BY 조건 위치
+  eq(rows(펼치기('', "WHERE 이름 <> '이부장'")).length, 10, 'WHERE는 한 행만');
+  eq(rows(펼치기("WHERE e.이름 <> '이부장'")).length, 6, '재귀 부분 조건은 가지째');
+  eq(rows(펼치기("WHERE e.이름 <> '박부장'")).length, 7, '박부장 가지 잘라내기');
+  eq(rows(펼치기('', "WHERE 이름 <> '이부장'")).find((r) => r[1] === '최과장')[0], 3, 'WHERE로 빼도 레벨 그대로');
+  // 오라클 계층형 문법은 SQLite에 없음, RECURSIVE 없이도 실행
+  assert(fails('SELECT 이름, LEVEL FROM 사원 START WITH 관리자번호 IS NULL CONNECT BY PRIOR 사원번호 = 관리자번호'), 'CONNECT BY 없음');
+  assert(fails("SELECT SYS_CONNECT_BY_PATH(이름, '/') FROM 사원"), 'SYS_CONNECT_BY_PATH 없음');
+  eq(one('WITH 조직(사원번호) AS (SELECT 사원번호 FROM 사원 WHERE 관리자번호 IS NULL UNION ALL SELECT e.사원번호 FROM 사원 e JOIN 조직 ON e.관리자번호 = 조직.사원번호) SELECT COUNT(*) FROM 조직'), [11], 'RECURSIVE 생략');
   db.close();
 });
 
